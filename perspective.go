@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -64,12 +65,14 @@ func main() {
 
 	log.SetFlags(0) // no log prefixes required, on most systems systemd-journald adds them
 
-	var base = flag.String("base", "", "A `prefix` like \"/foo\" which is stripped off every request URI and prepended to every link. Your reverse proxy must not strip it. So if you're using nginx, the \"proxy_pass\" value should not end with a slash.")
-	var dbDriver = flag.String("db-driver", "sqlite3", `database driver, can be "mysql" (untested), "postgres" (untested) or "sqlite3"`)
-	var dbDSN = flag.String("db-dsn", "perspective.sqlite3", "database data source name")
-	var listen = flag.String("listen", "127.0.0.1:8080", "`ip:port` to listen at")
-	var hmacSecret = flag.String("hmacsecret", "", "secret key for HMAC signatures of resized images")
+	var base = flag.String("base", "", "strip off this `prefix` from every HTTP request and prepended it to every link") // Your reverse proxy must not strip the prefix. So if you're using nginx, the "proxy_pass" value should not end with a slash."
+	var dbDriver = flag.String("db-driver", "sqlite3", "connect to the database using this `driver`, can be \"mysql\" (untested) or \"sqlite3\"")
+	var dbDSN = flag.String("db-dsn", "perspective.sqlite3", "connect to the database using this data source name")
+	var listen = flag.String("listen", "127.0.0.1:8080", "serve HTTP content at this `ip:port`")
+	var hmacKey = flag.String("hmac", "", "use this secret HMAC `key` for serving resized images")
 	flag.Parse()
+
+	*base = "/" + strings.Trim(*base, "/")
 
 	// <body> is like mainRoute.Include("/", "path/foo/bar", "body")
 	rootTemplate := template.Must(template.New("").Parse(`
@@ -217,7 +220,7 @@ func main() {
 	db.IndexDB = sqldb.NewIndexDB(sqlDB)
 
 	db.Auth = *authDB
-	db.HMACSecret = *hmacSecret
+	db.HMACSecret = *hmacKey
 	db.SqlDB = sqlDB
 
 	defer func() {
