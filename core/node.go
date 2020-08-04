@@ -28,7 +28,7 @@ type DBNode interface {
 	ClassName() string
 	TsCreated() int64
 	MaxVersionNo() int
-	MaxWGZeroVersionNo() int // Die version der neuesten Version mit workflow_group == 0, oder 0 falls es keine mit workflow_group == 0 gibt. Redundant, aber sehr hilfreich.
+	MaxWGZeroVersionNo() int // The number of the latest version with workflow_group == 0, else zero. Redundant, but helpful.
 
 	// version
 	DBVersionStub
