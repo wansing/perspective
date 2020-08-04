@@ -72,7 +72,10 @@ func main() {
 	var hmacKey = flag.String("hmac", "", "use this secret HMAC `key` for serving resized images")
 	flag.Parse()
 
-	*base = "/" + strings.Trim(*base, "/")
+	*base = strings.Trim(*base, "/")
+	if *base != "" {
+		*base = "/" + *base
+	}
 
 	// <body> is like mainRoute.Include("/", "path/foo/bar", "body")
 	rootTemplate := template.Must(template.New("").Parse(`
