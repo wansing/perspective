@@ -9,8 +9,9 @@ type UserDB interface {
 	ChangePassword(u DBUser, old, new string) error
 	Delete(u DBUser) error
 	GetUser(id int) (DBUser, error)
+	GetUserByName(name string) (DBUser, error)
 	GetAllUsers(limit, offset int) ([]DBUser, error)
-	InsertUser(name string) error
+	InsertUser(name string) (DBUser, error)
 	LoginUser(name, password string) (DBUser, error)
 	SetPassword(u DBUser, password string) error
 	Writeable() bool

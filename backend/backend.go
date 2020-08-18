@@ -62,10 +62,22 @@ func middleware(db *core.CoreDB, requireLoggedIn bool, f func(http.ResponseWrite
 		mainRoute.SetGlobal("include-bootstrap-4-css", "true")
 
 		if err := f(w, req, mainRoute, params); err != nil {
-			mainRoute.Danger(err)
+			// probably no template has been executed, so execute error template
+			errorTmpl.Execute(w, struct{
+				*Route
+				Err error
+			}{
+				Route: mainRoute,
+				Err:   err,
+			})
 		}
 	}
 }
+
+var errorTmpl = tmpl(`
+	<div class="alert alert-danger" role="alert">
+		{{ .Err }}
+	</div>`)
 
 func NewBackendRouter(db *core.CoreDB) http.Handler {
 
@@ -85,9 +97,10 @@ func NewBackendRouter(db *core.CoreDB) http.Handler {
 	router.GET("/choose/:page/*path", middleware(db, true, choose)) // "/choose/1/" will work, "/choose/1" won't
 	GETAndPOST("/class/*path", middleware(db, true, setClass))
 	GETAndPOST("/create/*path", middleware(db, true, create))
+	GETAndPOST("/create-root-node", middleware(db, true, createRootNode))
 	GETAndPOST("/delete/*path", middleware(db, true, del))
 	GETAndPOST("/edit/*path", middleware(db, true, edit))
-	GETAndPOST("/group", middleware(db, true, groups))
+	GETAndPOST("/groups", middleware(db, true, groups))
 	GETAndPOST("/group/:id", middleware(db, true, group))
 	router.GET("/logout", middleware(db, true, logout))
 	GETAndPOST("/move/*path", middleware(db, true, move))
@@ -95,64 +108,21 @@ func NewBackendRouter(db *core.CoreDB) http.Handler {
 	GETAndPOST("/rename/*path", middleware(db, true, rename))
 	GETAndPOST("/revoke/*path", middleware(db, true, revoke))
 	router.GET("/rules", middleware(db, true, rules))
-	router.GET("/user", middleware(db, true, users))
+	router.GET("/users", middleware(db, true, users))
 	GETAndPOST("/user/:id", middleware(db, true, user))
-	GETAndPOST("/workflow", middleware(db, true, workflows))
+	GETAndPOST("/workflows", middleware(db, true, workflows))
 	GETAndPOST("/workflow/:id", middleware(db, true, workflow))
 
 	return router
 }
 
 func tmpl(text string) *template.Template {
-	t := template.New("backend")
-	t = t.Funcs(
-		template.FuncMap{
-			"Breadcrumbs": func(im *core.Node, link bool) template.HTML {
-				return Breadcrumbs(im, link)
-			},
-			"CanAdmin": func(u auth.User, e *core.Node) bool {
-				return e.RequirePermission(core.Admin, u) == nil
-			},
-			"CanCreate": func(u auth.User, e *core.Node) bool {
-				return e.RequirePermission(core.Create, u) == nil
-			},
-			"CanRemove": func(u auth.User, e *core.Node) bool {
-				return e.RequirePermission(core.Remove, u) == nil
-			},
-			"FormatTs": FormatTs,
-			"GroupLink": func(group auth.Group) template.HTML {
-				if group.Id() == 0 { // all users
-					return template.HTML(group.Name())
-				} else {
-					return template.HTML(fmt.Sprintf(`<a href="/backend/group/%d">%s</a>`, group.Id(), group.Name()))
-				}
-			},
-			"HrefBackend": func(segment string, e *core.Node) string {
-				return "/backend" + hrefBackend(segment, e) // prepend /backend because this is for templates
-			},
-			"HrefBackendVersion": func(action string, e *core.Node, versionNr int) string {
-				return "/backend" + hrefBackendVersion(action, e, versionNr) // prepend /backend because this is for templates
-			},
-			"HrefChoose": func(e *core.Node, page int) string {
-				return "/backend" + hrefChoose(e, page)
-			},
-			"UserLink": func(user auth.User) template.HTML {
-				return template.HTML(fmt.Sprintf(`<a href="/backend/user/%d">%s</a>`, user.Id(), user.Name()))
-			},
-			"WorkflowLink": func(w *auth.Workflow) template.HTML {
-				return template.HTML(fmt.Sprintf(`<a href="/backend/workflow/%d">%s</a>`, w.Id(), w.Name()))
-			},
-			"WorkflowLinkLong": func(w *auth.Workflow) template.HTML {
-				return template.HTML(fmt.Sprintf(`<a href="/backend/workflow/%d">%s</a>`, w.Id(), w.String()))
-			},
-		},
-	)
-	t = template.Must(t.Parse(backendTmpl))
+	t := template.Must(backendTmpl.Clone())
 	t = template.Must(t.Parse(`{{ define "content" }}` + text + `{{ end }}`))
 	return t
 }
 
-const backendTmpl = `
+var backendTmpl = template.Must(template.New("backend").Parse(`
 <!DOCTYPE html>
 <html>
 	<head>
@@ -244,19 +214,19 @@ const backendTmpl = `
 
 						{{ if .GroupsWriteable }}
 							<li class="nav-item">
-								<a class="nav-link" href="/backend/group">Groups</a>
+								<a class="nav-link" href="/backend/groups">Groups</a>
 							</li>
 						{{ end }}
 
 						{{ if .UsersWriteable }}
 							<li class="nav-item">
-								<a class="nav-link" href="/backend/user">Users</a>
+								<a class="nav-link" href="/backend/users">Users</a>
 							</li>
 						{{ end }}
 
 						{{ if .WorkflowsWriteable }}
 							<li class="nav-item">
-								<a class="nav-link" href="/backend/workflow">Workflows</a>
+								<a class="nav-link" href="/backend/workflows">Workflows</a>
 							</li>
 						{{ end }}
 
@@ -344,4 +314,45 @@ const backendTmpl = `
 
 		{{ end }}
 	</body>
-</html>`
+</html>`)).Funcs(
+	template.FuncMap{
+		"Breadcrumbs": func(im *core.Node, link bool) template.HTML {
+			return Breadcrumbs(im, link)
+		},
+		"CanAdmin": func(u auth.User, e *core.Node) bool {
+			return e.RequirePermission(core.Admin, u) == nil
+		},
+		"CanCreate": func(u auth.User, e *core.Node) bool {
+			return e.RequirePermission(core.Create, u) == nil
+		},
+		"CanRemove": func(u auth.User, e *core.Node) bool {
+			return e.RequirePermission(core.Remove, u) == nil
+		},
+		"FormatTs": FormatTs,
+		"GroupLink": func(group auth.Group) template.HTML {
+			if group.Id() == 0 { // all users
+				return template.HTML(group.Name())
+			} else {
+				return template.HTML(fmt.Sprintf(`<a href="/backend/group/%d">%s</a>`, group.Id(), group.Name()))
+			}
+		},
+		"HrefBackend": func(segment string, e *core.Node) string {
+			return "/backend" + hrefBackend(segment, e) // prepend /backend because this is for templates
+		},
+		"HrefBackendVersion": func(action string, e *core.Node, versionNr int) string {
+			return "/backend" + hrefBackendVersion(action, e, versionNr) // prepend /backend because this is for templates
+		},
+		"HrefChoose": func(e *core.Node, page int) string {
+			return "/backend" + hrefChoose(e, page)
+		},
+		"UserLink": func(user auth.User) template.HTML {
+			return template.HTML(fmt.Sprintf(`<a href="/backend/user/%d">%s</a>`, user.Id(), user.Name()))
+		},
+		"WorkflowLink": func(w *auth.Workflow) template.HTML {
+			return template.HTML(fmt.Sprintf(`<a href="/backend/workflow/%d">%s</a>`, w.Id(), w.Name()))
+		},
+		"WorkflowLinkLong": func(w *auth.Workflow) template.HTML {
+			return template.HTML(fmt.Sprintf(`<a href="/backend/workflow/%d">%s</a>`, w.Id(), w.String()))
+		},
+	},
+)

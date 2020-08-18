@@ -2,6 +2,14 @@
 
 perspective is a content management system for websites, written in Go.
 
+## Initialize empty database
+
+```
+./perspective init -insert -group Admins -user admin
+./perspective init -join -group Admins -user admin
+./perspective init -make-admin -group Admins
+```
+
 ## Concepts
 
 * node: a content item, part of the content tree

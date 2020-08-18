@@ -11,6 +11,7 @@ type GroupDB interface {
 	Delete(g DBGroup) error
 	GetAllGroups(limit, offset int) ([]DBGroup, error)
 	GetGroup(id int) (DBGroup, error)
+	GetGroupByName(name string) (DBGroup, error)
 	GetGroupsOf(u DBUser) ([]DBGroup, error)
 	InsertGroup(name string) error
 	Join(g DBGroup, u DBUser) error

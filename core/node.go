@@ -43,11 +43,13 @@ type DBNode interface {
 type NodeDB interface {
 	AddVersion(n DBNode, content, versionNote string) error
 	DeleteNode(n DBNode) error
-	GetNodeById(id int) (parentId int, slug string, err error)
+	GetParentAndSlug(id int) (parentId int, slug string, err error)
 	GetLatestNode(parentId int, slug string) (DBNode, error)                 // latest version, error if node does not exist, empty version if no version exists
 	GetReleasedNode(parentId int, slug string) (DBNode, error)               // latest released version or error
+	GetReleasedNodeById(id int) (DBNode, error)                              // latest released version or error
 	GetVersionNode(parentId int, slug string, versionNo int) (DBNode, error) // specific version or error
-	InsertNode(parent DBNode, slug string, class string) error
+	InsertNode(parentId int, slug string, class string) error
+	IsNotFound(err error) bool
 	SetClass(n DBNode, className string) error
 	SetParent(n DBNode, parent DBNode) error
 	SetSlug(n DBNode, slug string) error
@@ -184,7 +186,7 @@ func (c *CoreDB) AddChild(n *Node, slug, className string) error {
 	if _, ok := c.ClassRegistry.Get(className); !ok {
 		return fmt.Errorf("class %s not found", className)
 	}
-	return c.InsertNode(n.DBNode, slug, className)
+	return c.InsertNode(n.DBNode.Id(), slug, className)
 }
 
 // DeleteNode shadows CoreDB.NodeDB.DeleteNode.
@@ -273,26 +275,28 @@ func (c *CoreDB) SetWorkflowGroup(n *Node, newWorkflowGroup int) error {
 		if n.Parent != nil {
 			parentId = n.Parent.Id()
 		}
-		newNode, err := c.GetReleasedNode(parentId, n.Slug())
+
+		var err error
+		n, err = c.GetReleasedNode(parentId, n.Slug())
 		if err != nil {
 			return err
 		}
 
 		var tmpRoute = newDummyRoute()
-		tmpRoute.current = newNode
+		tmpRoute.current = n
 		if err := tmpRoute.parseAndExecuteTemplates(); err != nil {
 			return err
 		}
 
-		if err := c.ClearIndex(newNode.Id()); err != nil {
+		if err := n.ClearIndex(); err != nil {
 			return err
 		}
 
-		if err := c.AddTags(newNode.Id(), newNode.TsChanged(), newNode.tags); err != nil {
+		if err := n.AddTags(n.tags); err != nil {
 			return err
 		}
 
-		if err := c.AddTimestamps(newNode.Id(), newNode.timestamps); err != nil {
+		if err := n.AddTimestamps(n.timestamps); err != nil {
 			return err
 		}
 	}

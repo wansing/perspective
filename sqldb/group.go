@@ -63,6 +63,7 @@ type GroupDB struct {
 	delete     *sql.Stmt
 	get        *sql.Stmt
 	getAll     *sql.Stmt
+	getByName  *sql.Stmt
 	getOf      *sql.Stmt
 	insert     *sql.Stmt
 	join       *sql.Stmt
@@ -90,6 +91,7 @@ func NewGroupDB(db *sql.DB) *GroupDB {
 	groupDB.delete = mustPrepare(db, "DELETE FROM grp WHERE id = ?")
 	groupDB.get = mustPrepare(db, "SELECT name FROM grp WHERE id = ? LIMIT 1")
 	groupDB.getAll = mustPrepare(db, "SELECT id, name FROM grp ORDER BY name LIMIT ? OFFSET ?")
+	groupDB.getByName = mustPrepare(db, "SELECT id FROM grp WHERE name = ? LIMIT 1")
 	groupDB.getOf = mustPrepare(db, "SELECT grp.id, grp.name FROM grp, membership WHERE grp.id = membership.grp AND membership.usr = ? ORDER BY grp.name")
 	groupDB.insert = mustPrepare(db, "INSERT INTO grp (name) VALUES (?)")
 	groupDB.join = mustPrepare(db, "INSERT INTO membership (grp, usr) VALUES (?, ?)")
@@ -131,6 +133,14 @@ func (db *GroupDB) GetGroup(id int) (auth.DBGroup, error) {
 		id: id,
 	}
 	return g, db.get.QueryRow(id).Scan(&g.name)
+}
+
+func (db *GroupDB) GetGroupByName(name string) (auth.DBGroup, error) {
+	var g = &group{
+		db:   db,
+		name: name,
+	}
+	return g, db.getByName.QueryRow(name).Scan(&g.id)
 }
 
 func (db *GroupDB) getMultiple(stmt *sql.Stmt, args ...interface{}) ([]auth.DBGroup, error) {
@@ -184,7 +194,9 @@ func (db *GroupDB) Join(g auth.DBGroup, user auth.DBUser) error {
 		return err
 	}
 
-	g.(*group).members[user.Id()] = struct{}{}
+	if grp := g.(*group); grp.members != nil { // if members are loaded
+		grp.members[user.Id()] = struct{}{}
+	}
 	return nil
 }
 
@@ -199,6 +211,8 @@ func (db *GroupDB) Leave(g auth.DBGroup, user auth.DBUser) error {
 		return err
 	}
 
-	delete(g.(*group).members, user.Id())
+	if grp := g.(*group); grp.members != nil { // if members are loaded
+		delete(grp.members, user.Id())
+	}
 	return nil
 }

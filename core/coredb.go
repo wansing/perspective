@@ -52,10 +52,18 @@ func (c *CoreDB) Init(sessionStore scs.Store, cookiePath string) error {
 	c.SessionManager.IdleTimeout = 12 * time.Hour
 	c.SessionManager.Lifetime = 720 * time.Hour
 
+	resizer, err := filestore.FindResizer()
+	if err == nil {
+		fmt.Printf("using JPEG resizer: %s\n", resizer.Name())
+	} else {
+		return err
+	}
+
 	c.Uploads = &filestore.Store{
-		CacheDir:   "./cache",
-		UploadDir:  "./uploads",
-		HMACSecret: []byte(c.HMACSecret),
+		CacheDir:    "./cache",
+		UploadDir:   "./uploads",
+		HMACSecret:  []byte(c.HMACSecret),
+		Resizer:     resizer,
 	}
 
 	return nil
@@ -139,7 +147,7 @@ func (c *CoreDB) internalPathByNodeId(id int, maxDepth int) (string, error) {
 		if id == 1 { // root
 			break
 		}
-		parentId, slug, err := c.GetNodeById(id)
+		parentId, slug, err := c.GetParentAndSlug(id)
 		if err != nil {
 			return "", err
 		}

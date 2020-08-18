@@ -14,6 +14,8 @@ import (
 	"github.com/wansing/perspective/util"
 )
 
+const SelectPerPage = 20
+
 var chooseTmpl = tmpl(`{{ Breadcrumbs .Selected false }}
 
 	<div class="table-responsive">
@@ -79,8 +81,6 @@ var chooseTmpl = tmpl(`{{ Breadcrumbs .Selected false }}
 		</ul>
 	</nav>`)
 
-const SelectPerPage = 20
-
 type chooseData struct {
 	*Route
 	page     int
@@ -131,9 +131,15 @@ func choose(w http.ResponseWriter, req *http.Request, r *Route, params httproute
 		page = 1
 	}
 
-	selected, err := r.Open(params.ByName("path"))
+	path := params.ByName("path")
+	selected, err := r.Open(path)
 	if err != nil {
-		return err
+		if r.db.IsNotFound(err) && path == "/" && r.IsRootAdmin() {
+			r.SeeOther("/create-root-node")
+			return nil
+		} else {
+			return err
+		}
 	}
 
 	if err := selected.RequirePermission(core.Read, r.User); err != nil {

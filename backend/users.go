@@ -21,7 +21,7 @@ var usersTmpl = tmpl(`<h1>Users</h1>
 
 	<form method="post" class="form-inline">
 		<div class="form-group">
-			<input type="email" class="form-control" name="mail_user" placeholder="EMail address">
+			<input type="email" class="form-control" name="mail_user" placeholder="Email address">
 			<button type="submit" class="btn btn-primary mx-sm-3" name="submit_add">Create user</button>
 		</div>
 	</div>`)
@@ -48,7 +48,7 @@ func users(w http.ResponseWriter, req *http.Request, r *Route, params httprouter
 			return errors.New("missing email address")
 		}
 
-		if err := r.db.Auth.InsertUser(newUserMail); err != nil {
+		if _, err := r.db.Auth.InsertUser(newUserMail); err != nil {
 			return err
 		}
 

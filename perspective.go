@@ -3,8 +3,10 @@
 package main
 
 import (
+	"bytes"
 	"database/sql"
 	"flag"
+	"fmt"
 	"html/template"
 	"log"
 	"net"
@@ -17,7 +19,6 @@ import (
 	"time"
 
 	"github.com/alexedwards/scs/v2"
-	mysqldrv "github.com/go-sql-driver/mysql" // for DSN parsing only
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/wansing/perspective/auth"
 	"github.com/wansing/perspective/backend"
@@ -26,7 +27,8 @@ import (
 	"github.com/wansing/perspective/sqldb"
 	"github.com/wansing/perspective/sqldb/mysql"
 	"github.com/wansing/perspective/sqldb/sqlite3"
-	"gopkg.in/ini.v1"
+	"github.com/xo/dburl"
+	"golang.org/x/crypto/ssh/terminal"
 )
 
 type prefixedResponseWriter struct {
@@ -61,137 +63,62 @@ func handleStrip(prefix string, handler http.Handler) {
 	)
 }
 
+func init() {
+	log.SetFlags(0) // no log prefixes, on most systems systemd-journald adds them
+}
+
 func main() {
 
-	log.SetFlags(0) // no log prefixes required, on most systems systemd-journald adds them
+	var dbArg string // is in both FlagSets
 
-	var base = flag.String("base", "", "strip off this `prefix` from every HTTP request and prepended it to every link") // Your reverse proxy must not strip the prefix. So if you're using nginx, the "proxy_pass" value should not end with a slash."
-	var dbDriver = flag.String("db-driver", "sqlite3", "connect to the database using this `driver`, can be \"mysql\" (untested) or \"sqlite3\"")
-	var dbDSN = flag.String("db-dsn", "perspective.sqlite3", "connect to the database using this data source name")
-	var listen = flag.String("listen", "127.0.0.1:8080", "serve HTTP content at this `ip:port`")
+	// default FlagSet
+
+	// Your reverse proxy must not strip the prefix. So if you're using nginx, the "proxy_pass" value should not end with a slash."
+	var base = flag.String("base", "", "strip off this `prefix` from every HTTP request and prepended it to every link")
+	// MySQL: collation should be utf8mb4_unicode_ci
+	flag.StringVar(&dbArg, "db", "sqlite3:perspective.sqlite3", "sql database url, see github.com/xo/dburl")
 	var hmacKey = flag.String("hmac", "", "use this secret HMAC `key` for serving resized images")
-	flag.Parse()
+	var listenAddr = flag.String("listen", "127.0.0.1:8080", "serve HTTP content at this `ip:port`")
 
-	*base = strings.Trim(*base, "/")
-	if *base != "" {
-		*base = "/" + *base
+	// init FlagSet
+
+	var initFlags = flag.NewFlagSet("init", flag.ExitOnError)
+
+	initFlags.StringVar(&dbArg, "db", "sqlite3:perspective.sqlite3", "sql database url, see github.com/xo/dburl") // copied from above
+	var initInsert = initFlags.Bool("insert", false, "creates the given group or user")
+	var initJoin = initFlags.Bool("join", false, "joins the given user to the given group")
+	var initMakeAdmin = initFlags.Bool("make-admin", false, "gives admin permissions to the given group")
+	var groupname = initFlags.String("group", "", "specifies a group `name`")
+	var username = initFlags.String("user", "", "specifies a user `name`")
+
+	if len(os.Args) > 1 && os.Args[1] == "init" {
+		initFlags.Parse(os.Args[2:])
+	} else {
+		flag.Parse()
 	}
 
-	// <body> is like mainRoute.Include("/", "path/foo/bar", "body")
-	rootTemplate := template.Must(template.New("").Parse(`
-{{ define "base" -}}
-<!DOCTYPE html>
-<html{{ with .GetGlobal "lang" }} lang="{{ . }}"{{ end }}>
-	<head>
-		<base href="` + *base + `">
-		<meta charset="utf-8">
-		{{ .Get "head" }}
-		{{- if .HasGlobal "include-bootstrap-4-css" }}
-			<link rel="stylesheet" type="text/css" href="/assets/bootstrap-4.4.1.min.css">
-			<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-		{{ end -}}
-		{{- if .HasGlobal "include-jquery-3" }}
-			<!-- Bootstrap's JavaScript requires jQuery. jQuery must be included before Bootstrap's JavaScript. -->
-			<script src="/assets/jquery-3.3.1.min.js"></script>
-		{{ end -}}
-		{{- if .HasGlobal "include-bootstrap-4-js" }}
-			<script src="/assets/bootstrap-4.4.1.min.js"></script>
-		{{ end -}}
-		{{- if .HasGlobal "include-taboverride-4" }}
-			<script src="/assets/taboverride-4.0.3.min.js"></script>
-		{{ end -}}
-	</head>
-	<body>
-		{{ .RenderNotifications }}
-		{{ .Get "body" }}
-	</body>
-</html>
-{{ end }}`))
+	// database
 
-	if *dbDriver == "mysql" {
-
-		var mergedCfg = &mysqldrv.Config{}
-
-		// load ~/.my.cnf if it exists
-
-		homedir, err := os.UserHomeDir()
-		if err != nil {
-			log.Printf("error getting home directory: %v", err)
-			return
-		}
-
-		if iniCfg, err := ini.InsensitiveLoad(homedir + "/.my.cnf"); err == nil {
-
-			mergedCfg.DBName = iniCfg.Section("client").Key("database").String()
-			mergedCfg.Passwd = iniCfg.Section("client").Key("password").String()
-			mergedCfg.User = iniCfg.Section("client").Key("user").String()
-
-			if socket := iniCfg.Section("client").Key("socket").String(); socket != "" {
-				mergedCfg.Addr = socket
-				mergedCfg.Net = "unix"
-			} else {
-				port := iniCfg.Section("client").Key("port").String()
-				if port == "" {
-					port = "3306"
-				}
-				mergedCfg.Addr = "localhost:" + port
-				mergedCfg.Net = "tcp"
-			}
-
-		} else {
-			if !os.IsNotExist(err) {
-				log.Printf("error loading ~/.my.cnf: %v", err)
-				return
-			}
-		}
-
-		// load argument
-
-		argCfg, err := mysqldrv.ParseDSN(*dbDSN)
-		if err != nil {
-			log.Printf("error parsing mysql dsn argument: %v", err)
-			return
-		}
-
-		if argCfg.DBName != "" {
-			mergedCfg.DBName = argCfg.DBName
-		}
-
-		if argCfg.Passwd != "" {
-			mergedCfg.Passwd = argCfg.Passwd
-		}
-
-		if argCfg.User != "" {
-			mergedCfg.User = argCfg.User
-		}
-
-		if argCfg.Addr != "" || argCfg.Net != "" {
-			mergedCfg.Addr = argCfg.Addr
-			mergedCfg.Net = argCfg.Net
-		}
-
-		// fixed collation and fallback database name
-
-		mergedCfg.Collation = "utf8mb4_unicode_ci" // this is crucial, else "Error 1267: Illegal mix of collations" in Prepare
-
-		if mergedCfg.DBName == "" {
-			mergedCfg.DBName = "cms"
-		}
-
-		*dbDSN = mergedCfg.FormatDSN()
+	dbURL, err := dburl.Parse(dbArg)
+	if err != nil {
+		log.Printf("could not parse database url: %v", err)
+		return
 	}
 
-	var sqlDB, err = sql.Open(*dbDriver, *dbDSN)
+	sqlDB, err := sql.Open(dbURL.Driver, dbURL.DSN)
 	if err != nil {
 		log.Printf("could not open sql database: %v", err)
 		return
 	}
 
-	err = sqlDB.Ping()
-	if err != nil {
+	if err = sqlDB.Ping(); err != nil {
 		log.Printf("could not ping sql database: %v", err)
 		return
 	}
+
+	log.Printf("using database %s", dbURL.String())
+
+	// assemble stuff
 
 	authDB := &auth.AuthDB{}
 	authDB.GroupDB = sqldb.NewGroupDB(sqlDB)
@@ -199,13 +126,13 @@ func main() {
 	authDB.WorkflowDB = sqldb.NewWorkflowDB(sqlDB)
 
 	var sessionStore scs.Store
-	switch *dbDriver {
+	switch dbURL.Driver {
 	case "mysql":
 		sessionStore = mysql.NewSessionStore(sqlDB)
 	case "sqlite3":
 		sessionStore = sqlite3.NewSessionStore(sqlDB)
 	default:
-		log.Println("unknown database backend")
+		log.Println("unknown database backend: %s", dbURL.Driver)
 		return
 	}
 
@@ -231,19 +158,160 @@ func main() {
 		sqlDB.Close()
 	}()
 
+	// init
+
+	if initFlags.Parsed() {
+		switch {
+		case *initInsert:
+			if *groupname != "" {
+				insertGroup(db, *groupname)
+			}
+			if *username != "" {
+				insertUser(db, *username)
+			}
+		case *initJoin:
+			if *groupname != "" && *username != "" {
+				join(db, *groupname, *username)
+			}
+		case *initMakeAdmin:
+			if *groupname != "" {
+				makeAdmin(db, *groupname)
+			}
+		}
+		return
+	}
+
+	// base
+
+	*base = strings.Trim(*base, "/")
+	if *base != "" {
+		*base = "/" + *base
+	}
+
+	listen(db, *listenAddr, *base)
+}
+
+func insertGroup(db *core.CoreDB, name string) {
+	if err := db.Auth.InsertGroup(name); err != nil {
+		log.Printf(`error creating group "%s": %v`, name, err)
+	}
+}
+
+func insertUser(db *core.CoreDB, name string) {
+
+	fmt.Printf("password for user %s: ", name)
+	pass1, err := terminal.ReadPassword(0)
+	fmt.Println()
+	if err != nil {
+		log.Printf("error reading password: %v", err)
+		return
+	}
+
+	fmt.Printf("repeat password: ")
+	pass2, err := terminal.ReadPassword(0)
+	fmt.Println()
+	if err != nil {
+		log.Printf("error reading password: %v", err)
+		return
+	}
+
+	if !bytes.Equal(pass1, pass2) {
+		log.Printf("passwords don't match")
+		return
+	}
+
+	user, err := db.Auth.InsertUser(name)
+	if err != nil {
+		log.Printf("error creating user %s: %v", name, err)
+		return
+	}
+
+	if err := db.Auth.SetPassword(user, string(pass1)); err != nil {
+		log.Printf("error setting password: %v", err)
+		return
+	}
+}
+
+func join(db *core.CoreDB, groupname string, username string) {
+
+	group, err := db.Auth.GetGroupByName(groupname)
+	if err != nil {
+		log.Printf("error getting group %s: %v", groupname, err)
+		return
+	}
+
+	user, err := db.Auth.GetUserByName(username)
+	if err != nil {
+		log.Printf("error getting user %s: %v", username, err)
+		return
+	}
+
+	if err := db.Auth.Join(group, user); err != nil {
+		log.Printf("error joining: %v", err)
+		return
+	}
+}
+
+func makeAdmin(db *core.CoreDB, groupname string) {
+
+	group, err := db.Auth.GetGroupByName(groupname)
+	if err != nil {
+		log.Printf("error getting group %s: %v", groupname, err)
+		return
+	}
+
+	if err := db.AccessDB.InsertAccessRule(1, group.Id(), int(core.Admin)); err != nil {
+		log.Printf(`error giving root admin permission to group: %v`, err)
+		return
+	}
+}
+
+func listen(db *core.CoreDB, addr string, base string) {
+
 	// mux
 	//
 	// golang mux recovers from panics, so the program won't crash
 
+	// <body> is like mainRoute.Include("/", "path/foo/bar", "body")
+	rootTemplate := template.Must(template.New("").Parse(`
+{{ define "base" -}}
+<!DOCTYPE html>
+<html{{ with .GetGlobal "lang" }} lang="{{ . }}"{{ end }}>
+	<head>
+		<base href="` + base + `">
+		<meta charset="utf-8">
+		{{ .Get "head" }}
+		{{- if .HasGlobal "include-bootstrap-4-css" }}
+			<link rel="stylesheet" type="text/css" href="/assets/bootstrap-4.4.1.min.css">
+			<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+		{{ end -}}
+		{{- if .HasGlobal "include-jquery-3" }}
+			<!-- Bootstrap's JavaScript requires jQuery. jQuery must be included before Bootstrap's JavaScript. -->
+			<script src="/assets/jquery-3.3.1.min.js"></script>
+		{{ end -}}
+		{{- if .HasGlobal "include-bootstrap-4-js" }}
+			<script src="/assets/bootstrap-4.4.1.min.js"></script>
+		{{ end -}}
+		{{- if .HasGlobal "include-taboverride-4" }}
+			<script src="/assets/taboverride-4.0.3.min.js"></script>
+		{{ end -}}
+	</head>
+	<body>
+		{{ .RenderNotifications }}
+		{{ .Get "body" }}
+	</body>
+</html>
+{{ end }}`))
+
 	var waitingControllers sync.WaitGroup
 
-	handleStrip(*base+"/assets", http.FileServer(assets))
-	handleStrip(*base+"/backend", backend.NewBackendRouter(db))
-	handleStrip(*base+"/static", http.FileServer(http.Dir("static")))
-	handleStrip(*base+"/upload", db.Uploads)
+	handleStrip(base+"/assets", http.FileServer(assets))
+	handleStrip(base+"/backend", backend.NewBackendRouter(db))
+	handleStrip(base+"/static", http.FileServer(http.Dir("static")))
+	handleStrip(base+"/upload", db.Uploads)
 
 	handleStrip(
-		*base,
+		base,
 		http.HandlerFunc(
 			func(w http.ResponseWriter, req *http.Request) {
 
@@ -283,13 +351,13 @@ func main() {
 
 	sigintChannel := make(chan os.Signal, 1)
 
-	listener, err := net.Listen("tcp", *listen)
+	listener, err := net.Listen("tcp", addr)
 	if err != nil {
 		log.Println(err)
 		return
 	}
 
-	log.Printf("listening to %s", *listen)
+	log.Printf("listening to %s", addr)
 
 	httpSrv := &http.Server{
 		Handler:      db.SessionManager.LoadAndSave(http.DefaultServeMux),

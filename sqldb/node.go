@@ -153,11 +153,12 @@ type NodeDB struct {
 	calculateMWGZV                 *sql.Stmt
 	countChildren                  *sql.Stmt
 	countReleased                  *sql.Stmt
-	getById                        *sql.Stmt
 	getChildrenAlphabetically      *sql.Stmt
 	getChildrenChronologicallyDesc *sql.Stmt
-	getNode                        *sql.Stmt
 	getLatest                      *sql.Stmt
+	getNode                        *sql.Stmt
+	getNodeById                    *sql.Stmt
+	getParentAndSlug               *sql.Stmt
 	getVersion                     *sql.Stmt
 	insertNode                     *sql.Stmt
 	insertVersion                  *sql.Stmt
@@ -204,11 +205,12 @@ func NewNodeDB(db *sql.DB) *NodeDB {
 	nodeDB.calculateMWGZV = mustPrepare(db, "SELECT COALESCE(max(versionNr), 0) FROM version WHERE version.id = ? AND version.workflow_group = 0")
 	nodeDB.countChildren = mustPrepare(db, "SELECT COUNT(1) FROM element WHERE parentId = ?")
 	nodeDB.countReleased = mustPrepare(db, "SELECT COUNT(1) FROM element WHERE parentId = ? AND maxWGZeroVersion > 0 AND ts_created > ?")
-	nodeDB.getById = mustPrepare(db, "SELECT parentId, slug FROM element WHERE id = ?")
 	nodeDB.getChildrenAlphabetically = mustPrepare(db, "SELECT id, parentId, slug, class, ts_created, maxVersion, maxWGZeroVersion FROM element WHERE parentId = ? ORDER BY slug LIMIT ? OFFSET ?")
 	nodeDB.getChildrenChronologicallyDesc = mustPrepare(db, "SELECT id, parentId, slug, class, ts_created, maxVersion, maxWGZeroVersion FROM element WHERE parentId = ? ORDER BY ts_created DESC LIMIT ? OFFSET ?")
-	nodeDB.getNode = mustPrepare(db, "SELECT id, parentId, slug, class, ts_created, maxVersion, maxWGZeroVersion FROM element WHERE parentId = ? AND slug = ? LIMIT 1")
 	nodeDB.getLatest = mustPrepare(db, "SELECT versionNr, versionNote, content, ts_changed, workflow_group FROM version WHERE id = ? ORDER BY versionNr DESC LIMIT 1") // in contrast to getVersion(e.maxVersion), this works if there is no version yet
+	nodeDB.getNode = mustPrepare(db, "SELECT id, parentId, slug, class, ts_created, maxVersion, maxWGZeroVersion FROM element WHERE parentId = ? AND slug = ? LIMIT 1")
+	nodeDB.getNodeById = mustPrepare(db, "SELECT id, parentId, slug, class, ts_created, maxVersion, maxWGZeroVersion FROM element WHERE id = ? LIMIT 1")
+	nodeDB.getParentAndSlug = mustPrepare(db, "SELECT parentId, slug FROM element WHERE id = ?")
 	nodeDB.getVersion = mustPrepare(db, "SELECT versionNr, versionNote, content, ts_changed, workflow_group FROM version WHERE id = ? AND versionNr = ? LIMIT 1")
 	nodeDB.insertNode = mustPrepare(db, "INSERT INTO element (parentId, slug, class, ts_created, maxVersion, maxWGZeroVersion) VALUES (?, ?, ?, ?, ?, ?)")
 	nodeDB.insertVersion = mustPrepare(db, "INSERT INTO version (id, versionNr, versionNote, content, ts_changed, workflow_group) VALUES (?, ?, ?, ?, ?, ?)")
@@ -295,8 +297,15 @@ func (db *NodeDB) get(parentId int, slug string) (*node, error) {
 	return e, db.getNode.QueryRow(parentId, slug).Scan(&e.id, &e.parentId, &e.slug, &e.className, &e.tsCreated, &e.maxVersionNo, &e.maxWGZeroVersionNo)
 }
 
-func (db *NodeDB) GetNodeById(id int) (parentId int, slug string, err error) {
-	return parentId, slug, db.getById.QueryRow(id).Scan(&parentId, &slug)
+func (db *NodeDB) getById(id int) (*node, error) {
+	var e = &node{
+		db: db,
+	}
+	return e, db.getNodeById.QueryRow(id).Scan(&e.id, &e.parentId, &e.slug, &e.className, &e.tsCreated, &e.maxVersionNo, &e.maxWGZeroVersionNo)
+}
+
+func (db *NodeDB) GetParentAndSlug(id int) (parentId int, slug string, err error) {
+	return parentId, slug, db.getParentAndSlug.QueryRow(id).Scan(&parentId, &slug)
 }
 
 func (db *NodeDB) GetLatestNode(parentId int, slug string) (core.DBNode, error) {
@@ -306,13 +315,22 @@ func (db *NodeDB) GetLatestNode(parentId int, slug string) (core.DBNode, error) 
 	}
 	err = db.getLatest.QueryRow(e.id).Scan(&e.versionNo, &e.versionNote, &e.content, &e.tsChanged, &e.workflowGroupId)
 	if err == sql.ErrNoRows {
-		err = nil // return empty version, see storage/node.go
+		err = nil // return empty version, see core/node.go
 	}
 	return e, err
 }
 
 func (db *NodeDB) GetReleasedNode(parentId int, slug string) (core.DBNode, error) {
 	var e, err = db.get(parentId, slug)
+	if e == nil || err != nil {
+		return e, err
+	}
+	// relies on correct maxWGZeroVersionNo
+	return e, db.getVersion.QueryRow(e.id, e.maxWGZeroVersionNo).Scan(&e.versionNo, &e.versionNote, &e.content, &e.tsChanged, &e.workflowGroupId)
+}
+
+func (db *NodeDB) GetReleasedNodeById(id int) (core.DBNode, error) {
+	var e, err = db.getById(id)
 	if e == nil || err != nil {
 		return e, err
 	}
@@ -328,9 +346,13 @@ func (db *NodeDB) GetVersionNode(parentId int, slug string, versionNo int) (core
 	return e, db.getVersion.QueryRow(e.id, versionNo).Scan(&e.versionNo, &e.versionNote, &e.content, &e.tsChanged, &e.workflowGroupId)
 }
 
-func (db *NodeDB) InsertNode(parent core.DBNode, slug string, className string) error {
-	_, err := db.insertNode.Exec(parent.Id(), slug, className, time.Now().Unix(), 0, 0)
+func (db *NodeDB) InsertNode(parentId int, slug string, className string) error {
+	_, err := db.insertNode.Exec(parentId, slug, className, time.Now().Unix(), 0, 0)
 	return err
+}
+
+func (db *NodeDB) IsNotFound(err error) bool {
+	return errors.Is(err, sql.ErrNoRows)
 }
 
 func (db *NodeDB) SetClass(e core.DBNode, className string) error {

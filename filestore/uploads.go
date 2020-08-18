@@ -8,6 +8,7 @@ import (
 	_ "image/jpeg"
 	"io"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"os"
 	"os/exec"
@@ -131,6 +132,7 @@ type Store struct {
 	CacheDir   string // will contain just files
 	UploadDir  string // will contain folders whose names are node ids
 	HMACSecret []byte
+	Resizer    JPEGResizer
 }
 
 func (s *Store) Folder(nodeId int) upload.Folder {
@@ -239,7 +241,9 @@ func (s *Store) ServeHTTP(writer http.ResponseWriter, req *http.Request) {
 			// resize
 
 			if _, err := os.Stat(canonical); os.IsNotExist(err) { // if canonical file doesn't exist
-				jpegResizer.Resize(original, canonical, w, h)
+				if err := s.Resizer.Resize(original, canonical, w, h); err != nil {
+					log.Printf("error resizing: %v", err)
+				}
 			}
 
 			// symlink canonical filename to requested filename, if necessary
@@ -288,17 +292,12 @@ func (Vips) Resize(original, resized string, width, height int) error {
 	return exec.Command("vips", args...).Run()
 }
 
-var jpegResizer JPEGResizer
-
-func init() {
-
+func FindResizer() (JPEGResizer, error) {
 	if _, err := exec.LookPath("vips"); err == nil {
-		jpegResizer = Vips{}
+		return Vips{}, nil
 	} else if _, err := exec.LookPath("convert"); err == nil {
-		jpegResizer = ImageMagick{}
+		return ImageMagick{}, nil
 	} else {
-		panic("no JPEG resizer found")
+		return nil, errors.New("no JPEG resizer found")
 	}
-
-	fmt.Printf("JPEG resizing: using %s\n", jpegResizer.Name())
 }

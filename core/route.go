@@ -16,6 +16,8 @@ import (
 	"gopkg.in/ini.v1"
 )
 
+const RootSlug = "root" // slug of the root node
+
 // see https://golang.org/pkg/context/#WithValue
 type routeContextKey struct{}
 
@@ -177,15 +179,13 @@ func (r *Route) IncludeChildBody(command string) (template.HTML, error) {
 	return r.Include(".", command, "body")
 }
 
-// RootRecurse prepends "/root" to the queue and calls Recurse.
+// RootRecurse prepends RootSlug to the queue and calls Recurse.
 func (r *Route) RootRecurse() error {
-
 	if r.Queue.Len() > 0 && (*r.Queue)[0].Key == "" { // like ":2/foo"
-		(*r.Queue)[0].Key = "root"
+		(*r.Queue)[0].Key = RootSlug
 	} else {
-		r.Queue.Push("root")
+		r.Queue.Push(RootSlug)
 	}
-
 	return r.Recurse()
 }
 
@@ -248,7 +248,7 @@ func (r *Route) recurse(parent, prev *Node) error {
 		r.current, err = r.db.GetVersionNode(parentId, slug, currentVersionNr)
 	}
 	if err != nil {
-		return fmt.Errorf("error getting node (%d, %s): %v", parentId, slug, err)
+		return fmt.Errorf("error getting node (%d, %s): %w", parentId, slug, err) // %w wraps err
 	}
 
 	r.current.Parent = parent

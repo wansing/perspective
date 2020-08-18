@@ -53,7 +53,7 @@ func workflows(w http.ResponseWriter, req *http.Request, r *Route, params httpro
 		}
 
 		r.Success("workflow %s has been created", newWorkflowName)
-		r.SeeOther("/workflow")
+		r.SeeOther("/workflows")
 		return nil
 	}
 
