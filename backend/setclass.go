@@ -1,7 +1,6 @@
 package backend
 
 import (
-	"errors"
 	"html/template"
 	"net/http"
 
@@ -48,10 +47,6 @@ func setClass(w http.ResponseWriter, req *http.Request, r *Route, params httprou
 
 	// check permission
 
-	if selected.Parent == nil {
-		return errors.New("can't change root class")
-	}
-
 	if err := selected.RequirePermission(core.Remove, r.User); err != nil {
 		return err
 	}
@@ -59,9 +54,7 @@ func setClass(w http.ResponseWriter, req *http.Request, r *Route, params httprou
 	// set class
 
 	if req.Method == http.MethodPost {
-
 		newClass = req.PostFormValue("class")
-
 		if err = r.db.SetClass(selected, newClass); err == nil {
 			r.SeeOther(hrefChoose(selected, 0))
 			return nil

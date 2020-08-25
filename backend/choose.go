@@ -39,12 +39,12 @@ var chooseTmpl = tmpl(`{{ Breadcrumbs .Selected false }}
 				<tr class="table-light">
 					<td colspan="4" style="border-top: 0; text-align: center;">
 						<a class="btn btn-sm btn-primary" href="{{ HrefBackend "edit" .Selected }}">Edit</a>
+						<a class="btn btn-sm btn-primary" href="{{ HrefBackend "class" .Selected }}">Set class</a>
 						{{ if CanCreate .User .Selected }}
 							<a class="btn btn-sm btn-primary" href="{{ HrefBackend "create" .Selected }}">Create</a>
 						{{ end }}
 						{{ if and .Selected.Parent (CanRemove .User .Selected) }}
 							<a class="btn btn-sm btn-primary" href="{{ HrefBackend "rename" .Selected }}">Rename</a>
-							<a class="btn btn-sm btn-primary" href="{{ HrefBackend "class" .Selected }}">Set class</a>
 							<a class="btn btn-sm btn-primary" href="{{ HrefBackend "move" .Selected }}">Move</a>
 							<a class="btn btn-sm btn-primary" href="{{ HrefBackend "delete" .Selected }}">Delete</a>
 						{{ end }}
