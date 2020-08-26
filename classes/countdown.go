@@ -76,7 +76,7 @@ func (t *Countdown) OnPrepare(r *core.Route) error {
 	r.SetLocal("minutes", fmt.Sprintf(`<span id="minutes-%s">%02d</span>`, t.UniqueId(), minutes))
 	r.SetLocal("seconds", fmt.Sprintf(`<span id="seconds-%s">%02d</span>`, t.UniqueId(), seconds))
 
-	r.Current().SetContent(
+	t.Node.SetContent(
 		`{{define "head"}}
 			{{.Get "head"}}
 
@@ -132,7 +132,7 @@ func (t *Countdown) OnPrepare(r *core.Route) error {
 				countdown{{.T.UniqueIdJS}}();
 
 			</script>
-		{{end}}` + r.Current().Content())
+		{{end}}` + t.Node.Content())
 
 	return nil
 }

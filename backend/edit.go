@@ -25,7 +25,7 @@ var editTmpl = tmpl(`{{ Breadcrumbs .Selected true }}
 
 		{{ with .State.ReleaseToGroup }}
 			&middot;
-			<form style="display: inline;" action="{{ HrefBackendVersion "release" $.Selected $.Selected.MaxVersionNo }}" method="post" enctype="multipart/form-data">
+			<form style="display: inline;" action="{{ HrefBackendVersion "release" $.Selected $.Selected.VersionNo }}" method="post" enctype="multipart/form-data">
 				<button type="submit" class="btn btn-sm btn-secondary" id="release_button">Release</button>
 				<!-- might delete old versions -->
 			</form>
@@ -38,7 +38,7 @@ var editTmpl = tmpl(`{{ Breadcrumbs .Selected true }}
 
 		{{ with .State.RevokeToGroup }}
 			&middot;
-			<form style="display: inline;" action="{{ HrefBackendVersion "revoke" $.Selected $.Selected.MaxVersionNo }}" method="post" enctype="multipart/form-data">
+			<form style="display: inline;" action="{{ HrefBackendVersion "revoke" $.Selected $.Selected.VersionNo }}" method="post" enctype="multipart/form-data">
 				<button type="submit" class="btn btn-sm btn-secondary" id="revoke_button">Revoke</button>
 				<!-- might delete old versions -->
 			</form>

@@ -20,7 +20,7 @@ type Route struct {
 }
 
 func NewRoute(db *core.CoreDB, request *core.Request, path string) (*Route, error) {
-	r, err := core.NewRoute(request, path)
+	r, err := core.NewRoute(request, core.NewQueue(path))
 	return &Route{
 		Route: r,
 		db:    db,
@@ -51,7 +51,6 @@ func middleware(db *core.CoreDB, requireLoggedIn bool, f func(http.ResponseWrite
 			http.NotFound(w, req)
 			return
 		}
-		mainRoute.Execute = true
 		defer mainRoute.Cleanup()
 
 		if requireLoggedIn && !mainRoute.LoggedIn() {

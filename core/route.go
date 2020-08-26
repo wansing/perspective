@@ -13,7 +13,6 @@ import (
 	"unicode/utf8"
 
 	"github.com/wansing/perspective/util"
-	"gopkg.in/ini.v1"
 )
 
 const RootSlug = "root" // slug of the root node
@@ -25,20 +24,15 @@ var ErrNotFound = errors.New("not found")
 
 // A route processes one queue, which can be the main queue or an included queue.
 //
-// A route is passed to the content template.
+// The route is passed to the content template.
 //
 // For usage in templates, funcs on Route must return "one return value (of any type) or two return values, the second of which is an error."
 type Route struct {
 	*Queue
 	*Request
-	Execute bool
 	results map[string]string // results of template execution
-	latest  bool
 	root    *Node
-
-	// only used during recursion
-	calledRecurse map[int]interface{} // node id -> interface{}, mapping exists if node has called Recurse
-	current       *Node
+	current *Node // to be used in templates only
 }
 
 // RouteFromContext gets a Route from the given context. It can panic.
@@ -46,41 +40,20 @@ func RouteFromContext(ctx context.Context) *Route {
 	return ctx.Value(routeContextKey{}).(*Route)
 }
 
-// NewRoute creates an empty Route. It creates a Queue from the given path.
-func NewRoute(request *Request, path string) (*Route, error) {
-	var queue, err = NewQueue(path)
-	if err != nil {
-		return nil, err
-	}
+func NewRoute(request *Request, queue *Queue) (*Route, error) {
 	return &Route{
-		Request:       request,
-		Queue:         queue,
-		results:       make(map[string]string),
-		calledRecurse: make(map[int]interface{}),
+		Queue:   queue,
+		Request: request,
+		results: make(map[string]string),
 	}, nil
 }
 
 func newDummyRoute() *Route {
-	var queue, _ = NewQueue("")
 	return &Route{
-		Queue:         queue,
-		Request:       newDummyRequest(),
-		results:       make(map[string]string),
-		calledRecurse: make(map[int]interface{}),
+		Queue:   NewQueue(""),
+		Request: newDummyRequest(),
+		results: make(map[string]string),
 	}
-}
-
-func (r *Route) Current() *Node {
-	return r.current
-}
-
-// ContentAsIni parses the content of the current node according to the INI syntax.
-func (r *Route) ContentAsIni() (map[string]string, error) {
-	cfg, err := ini.Load([]byte(r.current.Content()))
-	if err != nil {
-		return nil, err
-	}
-	return cfg.Section("").KeysHash(), nil
 }
 
 // T returns the instance of the current node.
@@ -102,6 +75,7 @@ func (r *Route) Prefix() string {
 //
 // basePath can be "."
 func (r *Route) Include(basePath, command, resultName string) (template.HTML, error) {
+	basePath = r.current.MakeAbsolute(basePath)
 	var result, err = r.include(basePath, command, resultName)
 	return template.HTML(result), err
 }
@@ -112,8 +86,6 @@ func (r *Route) include(basePath, command, resultName string) (string, error) {
 		return "", nil
 	}
 
-	basePath = r.current.MakeAbsolute(basePath)
-
 	if _, ok := r.includes[basePath][command]; !ok {
 
 		// base
@@ -121,30 +93,23 @@ func (r *Route) include(basePath, command, resultName string) (string, error) {
 		var base *Node // do not modify this!
 		var err error
 
-		if basePath == r.current.HrefPath() {
-			base = r.current
-		} else {
-			base, err = r.Request.Open(basePath) // returns the leaf
-			if err != nil {
-				return "", err
-			}
-			if base == nil {
-				return "", ErrNotFound
-			}
-			// base could be cached, but cache invalidation might be difficult
+		base, err = r.Open(basePath) // returns the leaf
+		if err != nil {
+			return "", err
 		}
+		if base == nil {
+			return "", ErrNotFound
+		}
+		// base could be cached, but cache invalidation might be difficult
 
 		// command
 
-		includeRoute, err := NewRoute(r.Request, command)
+		includeRoute, err := NewRoute(r.Request, NewQueue(command))
 		if err != nil {
 			return "", err
 		}
 
-		includeRoute.Execute = true
-
-		err = includeRoute.recurse(base, nil)
-		if err != nil {
+		if err = includeRoute.recurse(base, nil); err != nil {
 			return "", err
 		}
 
@@ -179,16 +144,6 @@ func (r *Route) IncludeChildBody(command string) (template.HTML, error) {
 	return r.Include(".", command, "body")
 }
 
-// RootRecurse prepends RootSlug to the queue and calls Recurse.
-func (r *Route) RootRecurse() error {
-	if r.Queue.Len() > 0 && (*r.Queue)[0].Key == "" { // like ":2/foo"
-		(*r.Queue)[0].Key = RootSlug
-	} else {
-		r.Queue.Push(RootSlug)
-	}
-	return r.Recurse()
-}
-
 // Recurse takes the next slug from the queue, creates the corresponding node and executes its templates.
 //
 // It must be called explicitly in the user content because some things (global templates, push) should be done before and some things (like output) should be done after calling Recurse.
@@ -212,20 +167,11 @@ func (r *Route) recurse(parent, prev *Node) error {
 		return fmt.Errorf("watchdog reached %d", r.watchdog)
 	}
 
-	// don't recurse twice
-	if r.current != nil {
-		if _, ok := r.calledRecurse[r.current.Id()]; ok {
-			log.Printf("[%s] recurse had already been called", r.current.Slug())
-			return nil
-		}
-		r.calledRecurse[r.current.Id()] = struct{}{}
-	}
-
 	if r.Queue.Len() == 0 {
 		return nil
 	}
 
-	// store node in r.current
+	// get node
 
 	var parentId = 0 // default parent id is always zero, because Node.Parent refers to the tree hierarchy
 	if parent != nil {
@@ -233,74 +179,40 @@ func (r *Route) recurse(parent, prev *Node) error {
 	}
 
 	var slug = (*r.Queue)[0].Key
-	var currentVersionNr = (*r.Queue)[0].Version
+	var versionNo = (*r.Queue)[0].Version
 	(*r.Queue) = (*r.Queue)[1:]
 
 	var err error
+	var n   *Node
 
-	if currentVersionNr == DefaultVersion {
-		if r.latest {
-			r.current, err = r.db.GetLatestNode(parentId, slug)
-		} else {
-			r.current, err = r.db.GetReleasedNode(parentId, slug)
-		}
+	if versionNo == DefaultVersion {
+		n, err = r.db.GetReleasedNode(parentId, slug)
 	} else {
-		r.current, err = r.db.GetVersionNode(parentId, slug, currentVersionNr)
+		n, err = r.db.GetVersionNode(parentId, slug, versionNo)
 	}
 	if err != nil {
-		return fmt.Errorf("error getting node (%d, %s): %w", parentId, slug, err) // %w wraps err
+		return fmt.Errorf("recurse (%d, %s): %w", parentId, slug, err) // %w wraps err
 	}
 
-	r.current.Parent = parent
-	r.current.Prev = prev
+	n.Parent = parent
+	n.Prev = prev
+
+	if prev != nil {
+		prev.Next = n
+	}
 
 	if r.root == nil {
-		r.root = r.current
+		r.root = n
 	}
 
-	// set prev and next
-	if prev != nil {
-		prev.Next = r.current
-		r.current.Prev = prev
-	}
-
-	if err := r.current.RequirePermission(Read, r.User); err != nil {
+	if err := n.RequirePermission(Read, r.User); err != nil {
 		return err
 	}
 
-	if r.Execute {
-
-		err = r.current.OnPrepare(r)
-		if err != nil {
-			r.Danger(err)
-		}
-
-		err = r.parseAndExecuteTemplates()
-		if err != nil {
-			r.Danger(err)
-		}
-
-		// Call Recurse if the user content didn't. This might mess up the output, but is still better than not recursing at all.
-
-		if _, ok := r.calledRecurse[r.current.Id()]; !ok {
-			log.Printf("[%s] calling recurse manually", r.current.Slug())
-			r.Recurse()
-		}
-
-		// OnPrepare is only executed if we're expecting HTML
-		if r.IsHTML() {
-			err = r.current.OnExecute(r)
-			if err != nil {
-				r.Danger(err)
-			}
-		}
-	} else {
-		// don't call hooks and don't execute user content, so we must recurse ourselves
-		r.Recurse()
+	// execute
+	if err = r.Execute(n); err != nil {
+		r.Danger(err)
 	}
-
-	// restore r.current
-	r.current = prev
 
 	return nil
 }
@@ -310,11 +222,35 @@ func isGlobal(templateName string) bool {
 	return unicode.IsUpper(firstRune)
 }
 
-func (r *Route) parseAndExecuteTemplates() error {
+type recurseCounter struct {
+	*Route
+	recursed bool
+}
+
+func (rc *recurseCounter) Recurse() error {
+	if rc.recursed {
+		return errors.New("Recurse has already been called") // for this node
+	}
+	rc.recursed = true
+	return rc.Route.Recurse()
+}
+
+var ContentFuncs = template.FuncMap{
+	"more": func() template.HTML {
+		return template.HTML("<!-- more -->")
+	},
+}
+
+// we can't return results because must be merged bottom-up (from leaf to root)
+func (r *Route) Execute(n *Node) error {
+
+	if err := n.OnPrepare(r); err != nil {
+		return err
+	}
 
 	// parse and execute the user content into templates (can contain variable assignments and queue modifications)
 
-	parsed, err := template.New("body").Parse(r.current.Content())
+	parsed, err := template.New("body").Funcs(ContentFuncs).Parse(n.Content())
 	if err != nil {
 		return err
 	}
@@ -350,13 +286,31 @@ func (r *Route) parseAndExecuteTemplates() error {
 
 	// execute local templates
 
+	r.current = n // for template execution
+
+	var rc = &recurseCounter{r, false}
+
 	for _, t := range localTemplates {
 		buf := &bytes.Buffer{}
-		err := t.Execute(buf, r) // recursion is done here
+		err := t.Execute(buf, rc) // recursion is done here
 		if err != nil {
-			return fmt.Errorf("error executing template in %s: %v", r.current, err)
+			return fmt.Errorf("executing %s in %s: %v", t.Name(), n, err)
 		}
 		r.results[t.Name()] = buf.String() // unconditionally, not using Route.Set
+	}
+
+	// Call Recurse if the user content didn't. This might mess up the output, but is still better than not recursing at all.
+
+	if !rc.recursed {
+		log.Printf("[%s] calling recurse manually", n)
+		r.Recurse()
+	}
+
+	// OnExecute only needs to be executed if we're expecting HTML
+	if r.IsHTML() {
+		if err = n.OnExecute(r); err != nil {
+			return err
+		}
 	}
 
 	return nil

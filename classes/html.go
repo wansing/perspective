@@ -34,7 +34,7 @@ type Html struct {
 
 func (t *Html) OnPrepare(r *core.Route) error {
 
-	var e = r.Current()
+	var e = t.Node
 
 	domtree, err := util.CreateDomTree(strings.NewReader(e.Content()))
 	if err != nil {
@@ -253,6 +253,6 @@ func (t *Html) OnPrepare(r *core.Route) error {
 		pkghtml.UnescapeString,
 	)
 
-	r.Current().SetContent(result)
+	e.SetContent(result)
 	return nil
 }

@@ -37,7 +37,7 @@ type DBNode interface {
 
 	CountChildren() (int, error)
 	CountReleasedChildren(minTsCreated int64) (int, error)
-	GetChildren(order Order, limit, offset int) ([]DBNode, error)
+	GetReleasedChildren(order Order, limit, offset int) ([]DBNode, error)
 }
 
 type NodeDB interface {
@@ -99,6 +99,24 @@ func (n *Node) Content() string {
 	} else {
 		return n.DBNode.Content()
 	}
+}
+
+// GetChildrenNodes does not shadow Node.DBNode.GetReleasedChildren
+func (n *Node) GetReleasedChildrenNodes(order Order, limit, offset int) ([]*Node, error) {
+	var children, err = n.DBNode.GetReleasedChildren(order, limit, offset)
+	if err != nil {
+		return nil, err
+	}
+	var result = make([]*Node, 0, len(children))
+	for _, c := range children {
+		node, err := n.db.newNode(c)
+		if err != nil {
+			return nil, err
+		}
+		node.Parent = n
+		result = append(result, node)
+	}
+	return result, nil
 }
 
 func (n *Node) SetContent(newContent string) {
@@ -283,8 +301,7 @@ func (c *CoreDB) SetWorkflowGroup(n *Node, newWorkflowGroup int) error {
 		}
 
 		var tmpRoute = newDummyRoute()
-		tmpRoute.current = n
-		if err := tmpRoute.parseAndExecuteTemplates(); err != nil {
+		if err := tmpRoute.Execute(n); err != nil {
 			return err
 		}
 

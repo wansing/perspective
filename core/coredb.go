@@ -60,10 +60,10 @@ func (c *CoreDB) Init(sessionStore scs.Store, cookiePath string) error {
 	}
 
 	c.Uploads = &filestore.Store{
-		CacheDir:    "./cache",
-		UploadDir:   "./uploads",
-		HMACSecret:  []byte(c.HMACSecret),
-		Resizer:     resizer,
+		CacheDir:   "./cache",
+		UploadDir:  "./uploads",
+		HMACSecret: []byte(c.HMACSecret),
+		Resizer:    resizer,
 	}
 
 	return nil
@@ -203,4 +203,48 @@ func (c *CoreDB) requirePermissionById(required Permission, nodeId int, u auth.U
 	}
 
 	return ErrUnauthorized
+}
+
+// Open prefers the latest version and does not execute anything.
+// Does not return DBNode because DBNode has no Parent and Next.
+func (db *CoreDB) Open(user auth.User, parent *Node, queue *Queue) (*Node, error) {
+
+	if queue.Len() > 16 {
+		return nil, errors.New("queue too deep")
+	}
+
+	var parentId = 0
+	if parent != nil {
+		parentId = parent.Id()
+	}
+
+	segment, ok := queue.Pop()
+	if !ok {
+		return nil, nil // queue is empty
+	}
+
+	var err error
+	var node *Node
+
+	if segment.Version == DefaultVersion {
+		node, err = db.GetLatestNode(parentId, segment.Key)
+	} else {
+		node, err = db.GetVersionNode(parentId, segment.Key, segment.Version)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("open (%d, %s): %w", parentId, segment.Key, err) // %w wraps err
+	}
+
+	node.Parent = parent
+	node.Prev = parent
+
+	if err := node.RequirePermission(Read, user); err != nil {
+		return nil, err
+	}
+
+	if node.Next, err = db.Open(user, node, queue); err != nil {
+		return nil, err
+	}
+
+	return node, nil
 }

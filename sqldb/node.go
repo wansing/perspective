@@ -105,7 +105,7 @@ func (e *node) getChildren(stmt *sql.Stmt, args ...interface{}) ([]core.DBNode, 
 		var child = &node{
 			db: e.db,
 		}
-		err := rows.Scan(&child.id, &child.parentId, &child.slug, &child.className, &child.tsCreated, &child.maxVersionNo, &child.maxWGZeroVersionNo)
+		err := rows.Scan(&child.id, &child.parentId, &child.slug, &child.className, &child.tsCreated, &child.maxVersionNo, &child.maxWGZeroVersionNo, &child.versionNo, &child.versionNote, &child.content, &child.tsChanged, &child.workflowGroupId)
 		if err != nil {
 			return nil, err
 		}
@@ -115,12 +115,12 @@ func (e *node) getChildren(stmt *sql.Stmt, args ...interface{}) ([]core.DBNode, 
 	return children, nil
 }
 
-func (e *node) GetChildren(order core.Order, limit, offset int) ([]core.DBNode, error) {
+func (e *node) GetReleasedChildren(order core.Order, limit, offset int) ([]core.DBNode, error) {
 	switch order {
 	case core.AlphabeticallyAsc:
-		return e.getChildren(e.db.getChildrenAlphabetically, e.id, limit, offset)
+		return e.getChildren(e.db.getReleasedChildrenAlphabetically, e.id, limit, offset)
 	case core.ChronologicallyDesc:
-		return e.getChildren(e.db.getChildrenChronologicallyDesc, e.id, limit, offset)
+		return e.getChildren(e.db.getReleasedChildrenChronologicallyDesc, e.id, limit, offset)
 	default:
 		return nil, fmt.Errorf("unknown order %d", order)
 	}
@@ -153,8 +153,8 @@ type NodeDB struct {
 	calculateMWGZV                 *sql.Stmt
 	countChildren                  *sql.Stmt
 	countReleased                  *sql.Stmt
-	getChildrenAlphabetically      *sql.Stmt
-	getChildrenChronologicallyDesc *sql.Stmt
+	getReleasedChildrenAlphabetically      *sql.Stmt
+	getReleasedChildrenChronologicallyDesc *sql.Stmt
 	getLatest                      *sql.Stmt
 	getNode                        *sql.Stmt
 	getNodeById                    *sql.Stmt
@@ -205,8 +205,8 @@ func NewNodeDB(db *sql.DB) *NodeDB {
 	nodeDB.calculateMWGZV = mustPrepare(db, "SELECT COALESCE(max(versionNr), 0) FROM version WHERE version.id = ? AND version.workflow_group = 0")
 	nodeDB.countChildren = mustPrepare(db, "SELECT COUNT(1) FROM element WHERE parentId = ?")
 	nodeDB.countReleased = mustPrepare(db, "SELECT COUNT(1) FROM element WHERE parentId = ? AND maxWGZeroVersion > 0 AND ts_created > ?")
-	nodeDB.getChildrenAlphabetically = mustPrepare(db, "SELECT id, parentId, slug, class, ts_created, maxVersion, maxWGZeroVersion FROM element WHERE parentId = ? ORDER BY slug LIMIT ? OFFSET ?")
-	nodeDB.getChildrenChronologicallyDesc = mustPrepare(db, "SELECT id, parentId, slug, class, ts_created, maxVersion, maxWGZeroVersion FROM element WHERE parentId = ? ORDER BY ts_created DESC LIMIT ? OFFSET ?")
+	nodeDB.getReleasedChildrenAlphabetically = mustPrepare(db, "SELECT e.id, e.parentId, e.slug, e.class, e.ts_created, e.maxVersion, e.maxWGZeroVersion, v.versionNr, v.versionNote, v.content, v.ts_changed, v.workflow_group FROM element e, version v WHERE e.parentId = ? AND e.id = v.id AND v.versionNr = e.maxWGZeroVersion ORDER BY slug LIMIT ? OFFSET ?")
+	nodeDB.getReleasedChildrenChronologicallyDesc = mustPrepare(db, "SELECT e.id, e.parentId, e.slug, e.class, e.ts_created, e.maxVersion, e.maxWGZeroVersion, v.versionNr, v.versionNote, v.content, v.ts_changed, v.workflow_group FROM element e, version v WHERE e.parentId = ? AND e.id = v.id AND v.versionNr = e.maxWGZeroVersion ORDER BY ts_created DESC LIMIT ? OFFSET ?")
 	nodeDB.getLatest = mustPrepare(db, "SELECT versionNr, versionNote, content, ts_changed, workflow_group FROM version WHERE id = ? ORDER BY versionNr DESC LIMIT 1") // in contrast to getVersion(e.maxVersion), this works if there is no version yet
 	nodeDB.getNode = mustPrepare(db, "SELECT id, parentId, slug, class, ts_created, maxVersion, maxWGZeroVersion FROM element WHERE parentId = ? AND slug = ? LIMIT 1")
 	nodeDB.getNodeById = mustPrepare(db, "SELECT id, parentId, slug, class, ts_created, maxVersion, maxWGZeroVersion FROM element WHERE id = ? LIMIT 1")

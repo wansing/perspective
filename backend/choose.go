@@ -88,7 +88,7 @@ type chooseData struct {
 }
 
 func (data *chooseData) Children() ([]core.DBNode, error) {
-	return data.Selected.GetChildren(data.Selected.Class.SelectOrder, SelectPerPage, (data.page-1)*SelectPerPage)
+	return data.Selected.GetReleasedChildren(data.Selected.Class.SelectOrder, SelectPerPage, (data.page-1)*SelectPerPage)
 }
 
 func (data *chooseData) PageLinks() []template.HTML {

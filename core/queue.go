@@ -1,7 +1,7 @@
 package core
 
 import (
-	"fmt"
+	pathpkg "path"
 	"strconv"
 	"strings"
 )
@@ -16,12 +16,7 @@ type QueueSegment struct {
 
 type Queue []QueueSegment
 
-func NewQueue(path string) (*Queue, error) {
-
-	// dots are not allowed
-	if strings.Contains(path, ".") {
-		return nil, fmt.Errorf("path contains a dot: %s", path)
-	}
+func NewQueue(path string) *Queue {
 
 	fields := strings.FieldsFunc(path, func(c rune) bool {
 		return c == 47 // slash
@@ -39,7 +34,17 @@ func NewQueue(path string) (*Queue, error) {
 		*queue = append(*queue, QueueSegment{Key: key, Version: version})
 	}
 
-	return queue, nil
+	// prepend RootSlug
+
+	if pathpkg.IsAbs(path) {
+		if queue.Len() > 0 && (*queue)[0].Key == "" { // like ":2/foo"
+			(*queue)[0].Key = RootSlug
+		} else {
+			queue.Push(RootSlug)
+		}
+	}
+
+	return queue
 }
 
 func (q *Queue) Clear() {
@@ -55,7 +60,7 @@ func (q *Queue) Len() int {
 }
 
 func (q *Queue) Pop() (segment QueueSegment, ok bool) {
-	if q.Len() > 0 && (*q)[0].Key != "" {
+	if q.Len() > 0 {
 		segment, (*q) = (*q)[0], (*q)[1:]
 		ok = true
 	}

@@ -80,7 +80,7 @@ func (t *Markdown) OnPrepare(r *core.Route) error {
 
 	var unindentedContent = &bytes.Buffer{}
 
-	lineScanner := bufio.NewScanner(strings.NewReader(r.Current().Content()))
+	lineScanner := bufio.NewScanner(strings.NewReader(t.Node.Content()))
 	for lineScanner.Scan() {
 		line := lineScanner.Text()
 		for len(line) > 0 && line[0] == '\t' {
@@ -115,7 +115,7 @@ func (t *Markdown) OnPrepare(r *core.Route) error {
 		prevRune = r
 	}
 
-	r.Current().SetContent(result.String())
+	t.Node.SetContent(result.String())
 
 	// this func shadows Html.OnPrepare, so we call it now
 	return t.Html.OnPrepare(r)

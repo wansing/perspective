@@ -148,18 +148,10 @@ func (req *Request) Logout() {
 	req.Cleanup()
 }
 
-// Open creates a new Route from the given path, setting latest = true and leaving Execute = false.
-// It returns the leaf of the route.
+// Open calls CoreDB.Open and returns the leaf.
 func (req *Request) Open(path string) (*Node, error) {
-	route, err := NewRoute(req, path)
-	if err != nil {
-		return nil, err
-	}
-	route.latest = true
-	if err = route.RootRecurse(); err != nil {
-		return nil, err
-	}
-	return route.root.Leaf(), nil
+	root, err := req.db.Open(req.User, nil, NewQueue(path))
+	return root.Leaf(), err
 }
 
 // GetGlobal returns the value of a global variable.

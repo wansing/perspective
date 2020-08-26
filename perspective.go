@@ -320,15 +320,14 @@ func listen(db *core.CoreDB, addr string, base string) {
 
 				var request = db.NewRequest(w, req)
 
-				var mainRoute, err = core.NewRoute(request, req.URL.Path)
+				var mainRoute, err = core.NewRoute(request, core.NewQueue(req.URL.Path))
 				if err != nil {
 					http.NotFound(w, req)
 					return
 				}
-				mainRoute.Execute = true
 				defer mainRoute.Cleanup()
 
-				if err := mainRoute.RootRecurse(); err != nil {
+				if err := mainRoute.Recurse(); err != nil {
 					http.NotFound(w, req)
 				}
 

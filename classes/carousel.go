@@ -35,7 +35,7 @@ func (t *Carousel) OnPrepare(r *core.Route) error {
 	r.SetGlobal("include-bootstrap-4-js", "true")
 	r.SetGlobal("include-jquery-3", "true")
 
-	r.Current().SetContent(
+	t.Node.SetContent(
 		`<div id="{{ .T.CarouselId }}" class="carousel slide" data-ride="carousel">
 			<ol class="carousel-indicators">
 				{{ range $index, $file := .T.Files }}
@@ -44,7 +44,7 @@ func (t *Carousel) OnPrepare(r *core.Route) error {
 			</ol>
 			<div class="carousel-inner">
 				{{ range $index, $file := .T.Files }}
-					<div class="carousel-item{{ if eq $index 0 }} active{{ end }}"><img class="d-block w-100" src="/upload/{{ $.Current.Id }}/{{ $file.Name }}"></div>
+					<div class="carousel-item{{ if eq $index 0 }} active{{ end }}"><img class="d-block w-100" src="/upload/{{ $.T.Node.Id }}/{{ $file.Name }}"></div>
 				{{ end }}
 			</div>
 			<a class="carousel-control-prev" href="#{{ .T.CarouselId }}" role="button" data-slide="prev">
@@ -55,7 +55,7 @@ func (t *Carousel) OnPrepare(r *core.Route) error {
 				<span class="carousel-control-next-icon" aria-hidden="true"></span>
 				<span class="sr-only">Next</span>
 			</a>
-		</div>` + r.Current().Content())
+		</div>` + t.Node.Content())
 
 	return nil
 }
