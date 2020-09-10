@@ -308,7 +308,7 @@ func (data *editData) VersionHistory() (template.HTML, error) {
 
 		w.WriteString(`
 			<td>
-				<a href="/backend` + hrefBackendVersion("edit", data.Selected, version.VersionNo()) + `">Open</a>
+				<a href="` + hrefBackendVersion("edit", data.Selected, version.VersionNo()) + `">Open</a>
 			</td>
 		`)
 

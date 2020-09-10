@@ -1,7 +1,6 @@
 package core
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -9,12 +8,11 @@ import (
 	"log"
 	"net/http"
 	"runtime/debug"
-	"unicode"
-	"unicode/utf8"
 
 	"github.com/wansing/perspective/util"
 )
 
+const RootId = 1        // id of the root node
 const RootSlug = "root" // slug of the root node
 
 // see https://golang.org/pkg/context/#WithValue
@@ -30,9 +28,9 @@ var ErrNotFound = errors.New("not found")
 type Route struct {
 	*Queue
 	*Request
-	results map[string]string // results of template execution
-	root    *Node
-	current *Node // to be used in templates only
+	*Node                      // current node, used by template funcs only
+	Vars     map[string]string // results of template execution
+	VarDepth map[string]int    // must be stored for each var separately
 }
 
 // RouteFromContext gets a Route from the given context. It can panic.
@@ -40,47 +38,21 @@ func RouteFromContext(ctx context.Context) *Route {
 	return ctx.Value(routeContextKey{}).(*Route)
 }
 
-func NewRoute(request *Request, queue *Queue) (*Route, error) {
-	return &Route{
-		Queue:   queue,
-		Request: request,
-		results: make(map[string]string),
-	}, nil
-}
-
-func newDummyRoute() *Route {
-	return &Route{
-		Queue:   NewQueue(""),
-		Request: newDummyRequest(),
-		results: make(map[string]string),
-	}
-}
-
 // T returns the instance of the current node.
 func (r *Route) T() interface{} {
-	return r.current.Instance
-}
-
-// Prefix returns the HrefPath of the leaf.
-// If the HrefPath is "/", Prefix returns an empty string.
-func (r *Route) Prefix() string {
-	var prefix = r.root.Leaf().HrefPath()
-	if prefix == "/" {
-		prefix = ""
-	}
-	return prefix
+	return r.Node.Instance
 }
 
 // Example: {{ .Include "/stuff" "footer" "body" }}
 //
 // basePath can be "."
-func (r *Route) Include(basePath, command, resultName string) (template.HTML, error) {
-	basePath = r.current.MakeAbsolute(basePath)
-	var result, err = r.include(basePath, command, resultName)
-	return template.HTML(result), err
+func (r *Route) Include(basePath, command, varName string) (template.HTML, error) {
+	basePath = r.Node.MakeAbsolute(basePath)
+	var v, err = r.include(basePath, command, varName)
+	return template.HTML(v), err
 }
 
-func (r *Route) include(basePath, command, resultName string) (string, error) {
+func (r *Route) include(basePath, command, varName string) (string, error) {
 
 	if r.includes == nil { // in dummy requests
 		return "", nil
@@ -90,10 +62,7 @@ func (r *Route) include(basePath, command, resultName string) (string, error) {
 
 		// base
 
-		var base *Node // do not modify this!
-		var err error
-
-		base, err = r.Open(basePath) // returns the leaf
+		base, err := r.Open(basePath) // returns the leaf
 		if err != nil {
 			return "", err
 		}
@@ -104,28 +73,28 @@ func (r *Route) include(basePath, command, resultName string) (string, error) {
 
 		// command
 
-		includeRoute, err := NewRoute(r.Request, NewQueue(command))
-		if err != nil {
+		includeRoute := &Route{
+			Request: r.Request,
+			Queue:   NewQueue(command),
+		}
+
+		if err = includeRoute.pop(base, nil); err != nil {
 			return "", err
 		}
 
-		if err = includeRoute.recurse(base, nil); err != nil {
-			return "", err
-		}
-
-		// cache results
+		// cache vars
 
 		if _, ok := r.includes[basePath]; !ok {
 			r.includes[basePath] = make(map[string]map[string]string)
 		}
 
-		r.includes[basePath][command] = includeRoute.results
+		r.includes[basePath][command] = includeRoute.Vars
 	}
 
-	if result, ok := r.includes[basePath][command][resultName]; ok {
-		return result, nil
+	if v, ok := r.includes[basePath][command][varName]; ok {
+		return v, nil
 	} else {
-		return "", ErrNotFound
+		return "", fmt.Errorf("including %s: var %s %w", command, varName, ErrNotFound)
 	}
 }
 
@@ -134,9 +103,9 @@ func (r *Route) IncludeBody(base, command string) (template.HTML, error) {
 	return r.Include(base, command, "body")
 }
 
-// IncludeChild calls Include(".", command, resultName).
-func (r *Route) IncludeChild(command, resultName string) (template.HTML, error) {
-	return r.Include(".", command, resultName)
+// IncludeChild calls Include(".", command, varName).
+func (r *Route) IncludeChild(command, varName string) (template.HTML, error) {
+	return r.Include(".", command, varName)
 }
 
 // IncludeChildBody calls Include(".", command, "body").
@@ -147,11 +116,14 @@ func (r *Route) IncludeChildBody(command string) (template.HTML, error) {
 // Recurse takes the next slug from the queue, creates the corresponding node and executes its templates.
 //
 // It must be called explicitly in the user content because some things (global templates, push) should be done before and some things (like output) should be done after calling Recurse.
+//
+// Because Recurse can be called in a template, r.Node must be set.
 func (r *Route) Recurse() error {
-	return r.recurse(r.current, r.current)
+	return r.pop(r.Node, r.Node)
 }
 
-func (r *Route) recurse(parent, prev *Node) error {
+// idempotent if prev != nil
+func (r *Route) pop(parent, prev *Node) error {
 
 	// When the template engine recovers from a panic, it displays an 404 error and logs the panic message.
 	// This approach displays the panic message and logs a stack trace.
@@ -165,6 +137,11 @@ func (r *Route) recurse(parent, prev *Node) error {
 
 	if r.watchdog++; r.watchdog > 1000 {
 		return fmt.Errorf("watchdog reached %d", r.watchdog)
+	}
+
+	if prev != nil && prev.Next != nil {
+		// Recurse has already been called
+		return nil
 	}
 
 	if r.Queue.Len() == 0 {
@@ -183,12 +160,12 @@ func (r *Route) recurse(parent, prev *Node) error {
 	(*r.Queue) = (*r.Queue)[1:]
 
 	var err error
-	var n   *Node
+	var n *Node
 
 	if versionNo == DefaultVersion {
-		n, err = r.db.GetReleasedNode(parentId, slug)
+		n, err = r.Request.db.GetReleasedNode(parent, slug)
 	} else {
-		n, err = r.db.GetVersionNode(parentId, slug, versionNo)
+		n, err = r.Request.db.GetVersionNode(parent, slug, versionNo)
 	}
 	if err != nil {
 		return fmt.Errorf("recurse (%d, %s): %w", parentId, slug, err) // %w wraps err
@@ -201,131 +178,30 @@ func (r *Route) recurse(parent, prev *Node) error {
 		prev.Next = n
 	}
 
-	if r.root == nil {
-		r.root = n
-	}
-
 	if err := n.RequirePermission(Read, r.User); err != nil {
 		return err
 	}
 
-	// execute
-	if err = r.Execute(n); err != nil {
-		r.Danger(err)
+	defer func(old *Node) {
+		r.Node = old
+	}(r.Node) // r.Node can be nil
+
+	r.Node = n // for template execution
+
+	if err := n.Do(r); err != nil {
+		return err
 	}
 
 	return nil
 }
 
-func isGlobal(templateName string) bool {
-	firstRune, _ := utf8.DecodeRuneInString(templateName)
-	return unicode.IsUpper(firstRune)
-}
-
-type recurseCounter struct {
-	*Route
-	recursed bool
-}
-
-func (rc *recurseCounter) Recurse() error {
-	if rc.recursed {
-		return errors.New("Recurse has already been called") // for this node
-	}
-	rc.recursed = true
-	return rc.Route.Recurse()
-}
-
-var ContentFuncs = template.FuncMap{
-	"more": func() template.HTML {
-		return template.HTML("<!-- more -->")
-	},
-}
-
-// we can't return results because must be merged bottom-up (from leaf to root)
-func (r *Route) Execute(n *Node) error {
-
-	if err := n.OnPrepare(r); err != nil {
-		return err
-	}
-
-	// parse and execute the user content into templates (can contain variable assignments and queue modifications)
-
-	parsed, err := template.New("body").Funcs(ContentFuncs).Parse(n.Content())
-	if err != nil {
-		return err
-	}
-
-	var globalTemplates []*template.Template
-	var localTemplates []*template.Template
-
-	for _, t := range parsed.Templates() {
-		if isGlobal(t.Name()) {
-			globalTemplates = append(globalTemplates, t)
-		} else {
-			localTemplates = append(localTemplates, t)
-		}
-	}
-
-	// parsed templates are still associated to each other, so it's enough to add the old global templates to one of the new localTemplates
-
-	for _, oldGlobal := range r.templates {
-		_, err = localTemplates[0].AddParseTree(oldGlobal.Name(), oldGlobal.Tree)
-		if err != nil {
-			return err
-		}
-	}
-
-	// now add new globalTemplates to r.templates
-
-	for _, newGlobal := range globalTemplates {
-		r.templates[newGlobal.Name()], err = newGlobal.Clone()
-		if err != nil {
-			return err
-		}
-	}
-
-	// execute local templates
-
-	r.current = n // for template execution
-
-	var rc = &recurseCounter{r, false}
-
-	for _, t := range localTemplates {
-		buf := &bytes.Buffer{}
-		err := t.Execute(buf, rc) // recursion is done here
-		if err != nil {
-			return fmt.Errorf("executing %s in %s: %v", t.Name(), n, err)
-		}
-		r.results[t.Name()] = buf.String() // unconditionally, not using Route.Set
-	}
-
-	// Call Recurse if the user content didn't. This might mess up the output, but is still better than not recursing at all.
-
-	if !rc.recursed {
-		log.Printf("[%s] calling recurse manually", n)
-		r.Recurse()
-	}
-
-	// OnExecute only needs to be executed if we're expecting HTML
-	if r.IsHTML() {
-		if err = n.OnExecute(r); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-// Get returns the result of a template execution from the previously processed node.
-// The stored result is cleared.
+// Get returns the value of a variable and clears it.
 //
-// If IsHTML is false (i.e. the content type is not HTML),
-// it returns an empty string as the return value will be thrown away anyway.
-//
+// If IsHTML is false (i.e. the content type is not HTML), it returns an empty string as the return value will be thrown away anyway.
 func (r *Route) Get(varName string) template.HTML {
 
-	var val, _ = r.results[varName]
-	delete(r.results, varName)
+	var val, _ = r.Vars[varName]
+	delete(r.Vars, varName)
 
 	if r.IsHTML() {
 		return template.HTML(val)
@@ -334,51 +210,33 @@ func (r *Route) Get(varName string) template.HTML {
 	}
 }
 
-func (r *Route) VarNames() []string {
-	names := make([]string, 0, len(r.results))
-	for name := range r.results {
-		names = append(names, name)
-	}
-	return names
-}
-
-// GetLocal returns the value of a local variable as HTML.
-func (r *Route) GetLocal(varName string) template.HTML {
-	return template.HTML(r.current.localVars[varName])
-}
-
-// GetLocal returns the value of a local variable as a string.
-func (r *Route) GetLocalStr(varName string) string {
-	return r.current.localVars[varName]
-}
-
-// Set sets the result of a template execution.
-// If the content type is HTML, it will refuse to overwrite an existing result.
-//
-// Set is intended to be used in classes. Node content should use {{define}} instead.
+// Set sets a variable if it is empty or if the current node is deeper than the origin of the existing value.
 func (r *Route) Set(name, value string) {
 
-	if !r.IsHTML() && r.results[name] != "" {
+	if !r.IsHTML() && r.Vars[name] != "" {
 		// don't overwrite content, which is probably JSON data or so
 		return
 	}
 
-	if r.results[name] == "" {
-		r.results[name] = value
+	if r.Vars == nil {
+		r.Vars = make(map[string]string)
 	}
-}
 
-// SetLocal sets a local variable.
-func (r *Route) SetLocal(name, value string) interface{} {
-	r.current.localVars[name] = value
-	return nil
+	if r.VarDepth == nil {
+		r.VarDepth = make(map[string]int)
+	}
+
+	if r.Vars[name] == "" || r.Node.Depth() > r.VarDepth[name] { // set if old value is empty (e.g. has been fetched using Get) or if the new value comes from a deeper node
+		r.Vars[name] = value
+		r.VarDepth[name] = r.Node.Depth()
+	}
 }
 
 // MakeIncludeOnly returns an error if the current node is in the main route.
 // The effect is that the node can only be used as an include,
 // but not be viewed directly.
 func (r *Route) MakeIncludeOnly() (interface{}, error) {
-	if r.current.isInMainRoute() {
+	if r.Node.Root().Id() == RootId {
 		return nil, ErrNotFound
 	}
 	return nil, nil
@@ -386,7 +244,7 @@ func (r *Route) MakeIncludeOnly() (interface{}, error) {
 
 // Tags applies one or more tags to the current node.
 func (r *Route) Tag(tags ...string) interface{} {
-	r.current.tags = append(r.current.tags, tags...)
+	r.Node.Tags = append(r.Node.Tags, tags...)
 	return nil
 }
 
@@ -395,18 +253,8 @@ func (r *Route) Tag(tags ...string) interface{} {
 func (r *Route) Ts(dates ...string) interface{} {
 	for _, dateStr := range dates {
 		if ts, err := util.ParseTime(dateStr); err == nil {
-			r.current.timestamps = append(r.current.timestamps, ts)
+			r.Node.Timestamps = append(r.Node.Timestamps, ts)
 		}
 	}
 	return nil
-}
-
-// IsRootAdmin returns true if the user has admin permission for the root node.
-func (r *Route) IsRootAdmin() bool {
-	// node id 1 is more robust than Node.Parent.Parent..., which relies on the consistency of the Parent field
-	if err := r.db.requirePermissionById(Admin, 1, r.User, nil); err == nil {
-		return true
-	} else {
-		return false
-	}
 }

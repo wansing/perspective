@@ -24,7 +24,7 @@ var rulesTmpl = tmpl(`<h1>All Access Rules</h1>
 
 		{{ range .WorkflowAssignments }}
 			<tr>
-				<td><a class="btn btn-sm btn-secondary" href="/backend/access{{ .InternalUrl }}">{{ .InternalUrl }}</a></td>
+				<td><a class="btn btn-sm btn-secondary" href="access{{ .InternalUrl }}">{{ .InternalUrl }}</a></td>
 				<td>{{ .ChildrenOnly }}</td>
 				<td>{{ if .Workflow }}{{ WorkflowLink .Workflow }}{{ else }}(Workflow not found){{ end }}</td>
 			</tr>
@@ -42,7 +42,7 @@ var rulesTmpl = tmpl(`<h1>All Access Rules</h1>
 
 		{{ range .Rules }}
 			<tr>
-				<td><a class="btn btn-sm btn-secondary" href="/backend/access{{ .Url }}">{{ .Url }}</a></td>
+				<td><a class="btn btn-sm btn-secondary" href="access{{ .Url }}">{{ .Url }}</a></td>
 				<td>{{ GroupLink .Group }}</td>
 				<td>{{ .Permission.String }}</td>
 			</tr>

@@ -47,12 +47,12 @@ func NewQueue(path string) *Queue {
 	return queue
 }
 
-func (q *Queue) Clear() {
-	(*q) = nil
-}
-
 func (q *Queue) HasPrefix(key string) bool {
 	return q.Len() > 0 && (*q)[0].Key == key
+}
+
+func (q *Queue) IsEmpty() bool {
+	return len(*q) == 0
 }
 
 func (q *Queue) Len() int {
@@ -67,37 +67,12 @@ func (q *Queue) Pop() (segment QueueSegment, ok bool) {
 	return
 }
 
-// PopInt removes and returns the key of the first queue item if and only if it is an integer.
-// Use the boolean return value to distinguish between zero and non-integer.
-func (q *Queue) PopInt() (val int, ok bool) {
-	if q.Len() == 0 {
-		return
+func (q *Queue) PopIf(segment string) bool {
+	if q.Len() > 0 && (*q)[0].Key == segment {
+		q.Pop()
+		return true
 	}
-	val, err := strconv.Atoi((*q)[0].Key)
-	if err != nil {
-		return
-	}
-	(*q) = (*q)[1:]
-	ok = true
-	return
-}
-
-// PopIf removes and returns the first queue item if and only if it equals the given key.
-func (q *Queue) PopIf(key string) (segment QueueSegment, ok bool) {
-	if q.Len() >= 1 && (*q)[0].Key == key {
-		segment, (*q) = (*q)[0], (*q)[1:]
-		ok = true
-	}
-	return
-}
-
-// PopIfVal removes and returns the second queue item if and only if the first item equals the given key.
-func (q *Queue) PopIfVal(key string) (segment QueueSegment, ok bool) {
-	if q.Len() >= 2 && (*q)[0].Key == key {
-		segment, *q = (*q)[1], (*q)[2:]
-		ok = true
-	}
-	return
+	return false
 }
 
 func (q *Queue) Push(slug string) interface{} {
@@ -106,14 +81,14 @@ func (q *Queue) Push(slug string) interface{} {
 }
 
 func (q *Queue) PushIfEmpty(slug string) interface{} {
-	if len(*q) == 0 {
+	if q.Len() == 0 {
 		q.Push(slug)
 	}
 	return nil
 }
 
 func (q *Queue) PushIfNotEmpty(slug string) interface{} {
-	if len(*q) > 0 {
+	if q.Len() > 0 {
 		q.Push(slug)
 	}
 	return nil
@@ -121,15 +96,17 @@ func (q *Queue) PushIfNotEmpty(slug string) interface{} {
 
 // String returns a textual representation like "/foo:42/bar", or "/" if the queue is empty.
 func (q *Queue) String() string {
-	result := ""
+	var result = &strings.Builder{}
 	for _, segment := range *q {
-		result = result + "/" + segment.Key
+		result.WriteString("/")
+		result.WriteString(segment.Key)
 		if segment.Version != 0 {
-			result = result + ":" + strconv.Itoa(segment.Version)
+			result.WriteString(":")
+			result.WriteString(strconv.Itoa(segment.Version))
 		}
 	}
-	if result == "" {
-		result = "/"
+	if result.Len() == 0 {
+		return "/"
 	}
-	return result
+	return result.String()
 }

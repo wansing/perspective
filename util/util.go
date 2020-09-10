@@ -1,61 +1,10 @@
 package util
 
 import (
-	"crypto/rand"
-	"encoding/base64"
-	"errors"
 	"html/template"
 	"sort"
 	"strconv"
-	"strings"
-	"time"
 )
-
-// RandomString32 returns a 32 bytes long string with 24 bytes (192 bits) of entropy.
-func RandomString32() (string, error) {
-
-	b := make([]byte, 24)
-
-	_, err := rand.Read(b)
-	if err != nil {
-		return "", err
-	}
-
-	result := base64.URLEncoding.EncodeToString(b)
-
-	if len(result) < 32 {
-		return "", errors.New("RandomString64 too short")
-	}
-
-	if len(result) > 32 {
-		result = result[:32]
-	}
-
-	return result, nil
-}
-
-// Trunc truncates the input string to a specific length.
-// It is UTF8-safe, but does not care for HTML.
-func Trunc(input string, maxRunes int) string {
-	input = strings.TrimSpace(input)
-	var runes = 0
-	for i := range input {
-		runes++
-		if runes == maxRunes {
-			return strings.TrimSpace(input[:i]) // trim spaces again
-		}
-	}
-	return input
-}
-
-// ParseTime parses a string like "02.01.2006 15:04" to a unix timestamp.
-func ParseTime(ts string) (int64, error) {
-	t, err := time.ParseInLocation("02.01.2006 15:04", ts, time.Local)
-	if err != nil {
-		return 0, err
-	}
-	return t.Unix(), nil
-}
 
 // Pages returns non-consecutive page numbers from 1 to numPages.
 func Pages(currentPage int, numPages int) []int {

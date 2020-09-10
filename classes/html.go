@@ -3,6 +3,7 @@ package classes
 import (
 	"fmt"
 	pkghtml "html"
+	"io"
 	"net/url"
 	"path"
 	"regexp"
@@ -19,7 +20,7 @@ import (
 func init() {
 	Register(&core.Class{
 		Create: func() core.Instance {
-			return &Html{}
+			return &HTML{}
 		},
 		Name: "HTML document",
 		Code: "html",
@@ -28,17 +29,31 @@ func init() {
 
 var delimiters = regexp.MustCompile("{{.+?}}") // +? prefer fewer
 
-type Html struct {
-	core.Base
+type HTML struct {
+	Raw
 }
 
-func (t *Html) OnPrepare(r *core.Route) error {
+// Do rewrites some HTML code and then calls Raw.Do().
+//
+// The order is crucial.
+// If templates were processed first, then embedded content would be rewritten as well.
+// Now instead, HTML rewriting must take care not to modify template instructions.
+func (t *HTML) Do(r *core.Route) error {
 
-	var e = t.Node
-
-	domtree, err := util.CreateDomTree(strings.NewReader(e.Content()))
+	rewritten, err := rewriteHTML(t.Node, strings.NewReader(t.Node.Content()))
 	if err != nil {
 		return err
+	}
+	t.Node.SetContent(rewritten)
+
+	return t.Raw.Do(r)
+}
+
+func rewriteHTML(node *core.Node, input io.Reader) (string, error) {
+
+	domtree, err := util.CreateDomTree(input)
+	if err != nil {
+		return "", err
 	}
 
 	// rewrite a-href and img-src
@@ -51,15 +66,15 @@ func (t *Html) OnPrepare(r *core.Route) error {
 	// - uploads and nodes share a namespace
 	// - node slugs must not contain dots
 
-	err = util.ForEachDomNode(domtree, func(node *html.Node) (bool, error) {
+	err = util.ForEachDomNode(domtree, func(domNode *html.Node) (bool, error) {
 
 		// return (but keep iterating) if not an a/img ElementNode
 
-		if node.Type != html.ElementNode {
+		if domNode.Type != html.ElementNode {
 			return true, nil
 		}
 
-		if node.DataAtom != atom.A && node.DataAtom != atom.Img {
+		if domNode.DataAtom != atom.A && domNode.DataAtom != atom.Img {
 			return true, nil
 		}
 
@@ -70,18 +85,18 @@ func (t *Html) OnPrepare(r *core.Route) error {
 
 		var attrIdx int = -1
 
-		if node.DataAtom == atom.A {
-			for i, attr := range node.Attr {
-				if node.DataAtom == atom.A && strings.ToLower(attr.Key) == "href" {
+		if domNode.DataAtom == atom.A {
+			for i, attr := range domNode.Attr {
+				if domNode.DataAtom == atom.A && strings.ToLower(attr.Key) == "href" {
 					attrIdx = i
 					break
 				}
 			}
 		}
 
-		if node.DataAtom == atom.Img {
-			for i, attr := range node.Attr {
-				if node.DataAtom == atom.Img && strings.ToLower(attr.Key) == "src" {
+		if domNode.DataAtom == atom.Img {
+			for i, attr := range domNode.Attr {
+				if domNode.DataAtom == atom.Img && strings.ToLower(attr.Key) == "src" {
 					attrIdx = i
 					break
 				}
@@ -94,14 +109,14 @@ func (t *Html) OnPrepare(r *core.Route) error {
 			return true, nil
 		}
 
-		// skip node if value is unparseable
+		// skip domNode if value is unparseable
 
-		u, err := url.Parse(node.Attr[attrIdx].Val)
+		u, err := url.Parse(domNode.Attr[attrIdx].Val)
 		if err != nil {
 			return true, nil
 		}
 
-		// skip node if the url contains explicit Opaque, Scheme, User or Host
+		// skip domNode if the url contains explicit Opaque, Scheme, User or Host
 
 		if u.Opaque != "" || u.Scheme != "" || u.User != nil || u.Host != "" {
 			return true, nil
@@ -109,7 +124,7 @@ func (t *Html) OnPrepare(r *core.Route) error {
 
 		// check if u is an upload
 
-		isUpload, location, filename, resize, w, h, _, _, err := e.ParseUploadUrl(u)
+		isUpload, location, filename, resize, w, h, _, _, err := node.ParseUploadUrl(u)
 		if err != nil {
 			return true, err
 		}
@@ -130,18 +145,18 @@ func (t *Html) OnPrepare(r *core.Route) error {
 					styleAttr += " max-height: " + strconv.Itoa(h) + "px;"
 				}
 
-				node.Attr = append(node.Attr, html.Attribute{Key: "style", Val: styleAttr})
+				domNode.Attr = append(domNode.Attr, html.Attribute{Key: "style", Val: styleAttr})
 
 				// restore w and h and append timestamp and signature to filename
 
 				ts := time.Now().Unix()
 
-				filename += fmt.Sprintf("?w=%d&h=%d&ts=%d&sig=%s", w, h, ts, e.HMAC(location.NodeId(), filename, w, h, ts))
+				filename += fmt.Sprintf("?w=%d&h=%d&ts=%d&sig=%s", w, h, ts, node.HMAC(location.NodeId(), filename, w, h, ts))
 			}
 
 			// always prepend upload folder
 
-			node.Attr[attrIdx].Val = fmt.Sprintf("/upload/%d/%s", location.NodeId(), filename)
+			domNode.Attr[attrIdx].Val = fmt.Sprintf("/upload/%d/%s", location.NodeId(), filename)
 
 			return true, nil
 
@@ -149,7 +164,7 @@ func (t *Html) OnPrepare(r *core.Route) error {
 
 			// It's not an upload. atom.Img wouldn't make sense.
 
-			if node.DataAtom == atom.A {
+			if domNode.DataAtom == atom.A {
 
 				// post-process u.Path
 				//
@@ -162,19 +177,19 @@ func (t *Html) OnPrepare(r *core.Route) error {
 				switch u.Path {
 				case "":
 					if u.Fragment == "" { // don't touch href="#foo"
-						if node.FirstChild != nil {
-							u.Path = path.Join(e.HrefView(), core.NormalizeSlug(node.FirstChild.Data)) // href from content
+						if domNode.FirstChild != nil {
+							u.Path = path.Join(node.HrefView(), core.NormalizeSlug(domNode.FirstChild.Data)) // href from content
 						}
 					}
 				case ".":
-					u.Path = e.HrefView() // href to impression which contains it
+					u.Path = node.HrefView() // href to impression which contains it
 				default:
 					if u.Path[0] != '/' { // don't touch absolute href
-						u.Path = path.Join(e.HrefView(), u.Path) // make path absolute
+						u.Path = path.Join(node.HrefView(), u.Path) // make path absolute
 					}
 				}
 
-				node.Attr[attrIdx].Val = u.String()
+				domNode.Attr[attrIdx].Val = u.String()
 
 				// Determine if the link is active
 				//
@@ -201,13 +216,13 @@ func (t *Html) OnPrepare(r *core.Route) error {
 				//
 				// * /
 
-				leaf := e.Leaf().HrefView()
+				leaf := node.Leaf().HrefView()
 
 				active := strings.HasPrefix(leaf, u.Path)
 
 				// stricter rule for root node
 
-				root := e.Root().HrefView()
+				root := node.Root().HrefView()
 
 				if active && u.Path == root {
 					active = leaf == root
@@ -219,13 +234,13 @@ func (t *Html) OnPrepare(r *core.Route) error {
 
 					classFound := false
 
-					for i := range node.Attr {
+					for i := range domNode.Attr {
 
-						if strings.ToLower(node.Attr[i].Key) != "class" {
+						if strings.ToLower(domNode.Attr[i].Key) != "class" {
 							continue
 						}
 
-						node.Attr[i].Val = node.Attr[i].Val + " active"
+						domNode.Attr[i].Val = domNode.Attr[i].Val + " active"
 						classFound = true
 						break
 					}
@@ -233,7 +248,7 @@ func (t *Html) OnPrepare(r *core.Route) error {
 					// attribute "class" not found, add 'class="active"''
 
 					if !classFound {
-						node.Attr = append(node.Attr, html.Attribute{Key: "class", Val: "active"})
+						domNode.Attr = append(domNode.Attr, html.Attribute{Key: "class", Val: "active"})
 					}
 				}
 			}
@@ -242,7 +257,7 @@ func (t *Html) OnPrepare(r *core.Route) error {
 		return true, err
 	})
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	// restore quotation marks etc within template instructions {{ }}
@@ -253,6 +268,5 @@ func (t *Html) OnPrepare(r *core.Route) error {
 		pkghtml.UnescapeString,
 	)
 
-	e.SetContent(result)
-	return nil
+	return result, nil
 }

@@ -31,7 +31,7 @@ func (w *responseWriter) Write(b []byte) (int, error) {
 // It prepends the path, so subrouters like Routed.Handler do HTTP redirects easily (e.g. to a cleaned version of the path, or to a version with removed or added trailing slashes).
 func (w *responseWriter) WriteHeader(statusCode int) {
 	if location := w.Header().Get("Location"); location != "" {
-		w.Header().Set("Location", w.root.Leaf().HrefPath()+location)
+		w.Header().Set("Location", w.Node.Leaf().HrefPath()+location)
 	}
 	w.writer.WriteHeader(statusCode)
 }
@@ -40,20 +40,15 @@ func (w *responseWriter) WriteHeader(statusCode int) {
 type Routed struct {
 	Base
 	http.Handler
-	path string // transfers the router path from OnPrepare to OnExecute
 }
 
-// OnPrepare just clears the queue, saving its string representation (path) for later.
-func (t *Routed) OnPrepare(r *Route) error {
-	t.path = r.Queue.String()
-	r.Queue.Clear()
-	return nil
-}
+// Empties the queue, creates an http.Request struct and an http.ResponseWriter, calls Routed.Handler.ServeHTTP and writes the result to the "body" variable.
+func (t *Routed) Do(r *Route) error {
 
-// OnExecute is called immediately after OnPrepare because OnPrepare cleared the queue.
-// It creates an http.Request struct and an http.ResponseWriter, calls Routed.Handler.ServeHTTP
-// and writes the result to the "body" variable.
-func (t *Routed) OnExecute(r *Route) error {
+	var path = r.Queue.String()
+	r.Queue = nil // clear queue
+
+	// no need to call r.Recurse because the queue is empty anyway
 
 	var req = r.request.Clone(
 		context.WithValue(
@@ -63,16 +58,16 @@ func (t *Routed) OnExecute(r *Route) error {
 		),
 	)
 
-	u, err := url.Parse(t.path)
-	if err != nil {
+	if u, err := url.Parse(path); err == nil {
+		req.URL = u
+	} else {
 		return err
 	}
-	req.URL = u
 
-	var w = &responseWriter{Route: r}
+	var writer = &responseWriter{Route: r}
 
-	t.Handler.ServeHTTP(w, req)
+	t.Handler.ServeHTTP(writer, req)
 
-	r.Set("body", w.String()) // "body" variable should be empty before because Routed can not have child nodes
+	r.Set("body", writer.String())
 	return nil
 }

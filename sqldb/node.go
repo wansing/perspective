@@ -88,7 +88,7 @@ func (e *node) CountChildren() (int, error) {
 
 func (e *node) CountReleasedChildren(minTsCreated int64) (int, error) {
 	var count int
-	return count, e.db.countReleased.QueryRow(e.id).Scan(&count)
+	return count, e.db.countReleased.QueryRow(e.id, minTsCreated).Scan(&count)
 }
 
 func (e *node) getChildren(stmt *sql.Stmt, args ...interface{}) ([]core.DBNode, error) {
@@ -150,27 +150,27 @@ func (e *node) Versions() ([]core.DBVersionStub, error) {
 
 type NodeDB struct {
 	*sql.DB
-	calculateMWGZV                 *sql.Stmt
-	countChildren                  *sql.Stmt
-	countReleased                  *sql.Stmt
+	calculateMWGZV                         *sql.Stmt
+	countChildren                          *sql.Stmt
+	countReleased                          *sql.Stmt
 	getReleasedChildrenAlphabetically      *sql.Stmt
 	getReleasedChildrenChronologicallyDesc *sql.Stmt
-	getLatest                      *sql.Stmt
-	getNode                        *sql.Stmt
-	getNodeById                    *sql.Stmt
-	getParentAndSlug               *sql.Stmt
-	getVersion                     *sql.Stmt
-	insertNode                     *sql.Stmt
-	insertVersion                  *sql.Stmt
-	removeNode                     *sql.Stmt
-	removeVersion                  *sql.Stmt
-	setClass                       *sql.Stmt
-	setMaxVersion                  *sql.Stmt
-	setMWGZV                       *sql.Stmt
-	setParent                      *sql.Stmt
-	setSlug                        *sql.Stmt
-	setWorkflowGroup               *sql.Stmt
-	versions                       *sql.Stmt
+	getLatest                              *sql.Stmt
+	getNode                                *sql.Stmt
+	getNodeById                            *sql.Stmt
+	getParentAndSlug                       *sql.Stmt
+	getVersion                             *sql.Stmt
+	insertNode                             *sql.Stmt
+	insertVersion                          *sql.Stmt
+	removeNode                             *sql.Stmt
+	removeVersion                          *sql.Stmt
+	setClass                               *sql.Stmt
+	setMaxVersion                          *sql.Stmt
+	setMWGZV                               *sql.Stmt
+	setParent                              *sql.Stmt
+	setSlug                                *sql.Stmt
+	setWorkflowGroup                       *sql.Stmt
+	versions                               *sql.Stmt
 }
 
 func NewNodeDB(db *sql.DB) *NodeDB {

@@ -5,9 +5,12 @@ import (
 	"fmt"
 	"html/template"
 	"net/http"
+	"strings"
+	"time"
 
 	"github.com/alexedwards/scs/v2"
 	"github.com/wansing/perspective/auth"
+	"golang.org/x/text/language"
 )
 
 type Notification struct {
@@ -18,6 +21,22 @@ type Notification struct {
 func init() {
 	gob.Register([]Notification{}) // required for storing Notifications in a session
 }
+
+var langMatcher = language.NewMatcher([]language.Tag{
+	language.AmericanEnglish, // default
+	language.German,
+})
+
+var monthNamesDe = strings.NewReplacer(
+	"January", "Januar",
+	"February", "Februar",
+	"March", "März",
+	"May", "Mai",
+	"June", "Juni",
+	"July", "Juli",
+	"October", "Oktober",
+	"December", "Dezember",
+)
 
 // A Request is created by CoreDB.NewRequest.
 type Request struct {
@@ -31,11 +50,14 @@ type Request struct {
 	// content
 	globals   map[string]string                       // must be writable by includes, so they can require js/css libraries
 	includes  map[string]map[string]map[string]string // base path => command => resultName => value
-	templates map[string]*template.Template           // global templates
+	Templates map[string]*template.Template           // global templates
 
 	// robustness
 	statusWritten bool
 	watchdog      int
+
+	// caching
+	language language.Tag
 }
 
 // NewRequest creates a Request with the given http.ResponseWriter and http.Request.
@@ -48,8 +70,10 @@ func (c *CoreDB) NewRequest(w http.ResponseWriter, httpreq *http.Request) *Reque
 		request:   httpreq,
 		globals:   make(map[string]string),
 		includes:  make(map[string]map[string]map[string]string),
-		templates: make(map[string]*template.Template),
+		Templates: make(map[string]*template.Template),
 	}
+
+	req.language, _ = language.MatchStrings(langMatcher, httpreq.Header.Get("Accept-Language"))
 
 	if uid := c.SessionManager.GetInt(httpreq.Context(), "uid"); uid != 0 {
 		u, err := c.Auth.GetUser(uid)
@@ -68,7 +92,7 @@ func newDummyRequest() *Request {
 		request:   nil,
 		globals:   make(map[string]string),
 		includes:  nil, // include checks that
-		templates: make(map[string]*template.Template),
+		Templates: make(map[string]*template.Template),
 	}
 }
 
@@ -186,5 +210,25 @@ func (req *Request) IsHTML() bool {
 		return true
 	default:
 		return false
+	}
+}
+
+// IsRootAdmin returns true if the user has admin permission for the root node.
+func (req *Request) IsRootAdmin() bool {
+	// node id 1 is more robust than Node.Parent.Parent..., which relies on the consistency of the Parent field
+	if err := req.db.requirePermissionById(Admin, 1, req.User, nil); err == nil {
+		return true
+	} else {
+		return false
+	}
+}
+
+func (req *Request) FormatDateTime(ts int64) string {
+	b, _ := req.language.Base()
+	switch b.String() {
+	case "de":
+		return monthNamesDe.Replace(time.Unix(ts, 0).Format("2. January 2006 15:04 Uhr"))
+	default:
+		return time.Unix(ts, 0).Format("January 2, 2006 3:04 PM")
 	}
 }

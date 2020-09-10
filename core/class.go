@@ -31,11 +31,10 @@ func (class *Class) InfoHTML() template.HTML {
 
 // An Instance of a Class is wrapped around an Node.
 type Instance interface {
-	ExternalURLSegments() []string
+	AdditionalSlugs() []string
 	GetNode() *Node // classes can access Foo.Base.Node directly, but the core has just a Class object and must use this method to get the *Node
 	SetNode(*Node)
-	OnPrepare(*Route) error
-	OnExecute(*Route) error
+	Do(*Route) error
 }
 
 // All Instances should embed the Base class.
@@ -43,7 +42,7 @@ type Base struct {
 	*Node
 }
 
-func (t *Base) ExternalURLSegments() []string {
+func (t *Base) AdditionalSlugs() []string {
 	return nil
 }
 
@@ -55,10 +54,6 @@ func (t *Base) SetNode(node *Node) {
 	t.Node = node
 }
 
-func (t *Base) OnPrepare(*Route) error {
-	return nil
-}
-
-func (t *Base) OnExecute(*Route) error {
-	return nil
+func (t *Base) Do(r *Route) error {
+	return r.Recurse()
 }

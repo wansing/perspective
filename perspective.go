@@ -320,10 +320,9 @@ func listen(db *core.CoreDB, addr string, base string) {
 
 				var request = db.NewRequest(w, req)
 
-				var mainRoute, err = core.NewRoute(request, core.NewQueue(req.URL.Path))
-				if err != nil {
-					http.NotFound(w, req)
-					return
+				var mainRoute = &core.Route{
+					Request: request,
+					Queue:   core.NewQueue(req.URL.Path),
 				}
 				defer mainRoute.Cleanup()
 
@@ -338,7 +337,7 @@ func listen(db *core.CoreDB, addr string, base string) {
 					return
 				}
 
-				if err = rootTemplate.ExecuteTemplate(w, "base", mainRoute); err != nil {
+				if err := rootTemplate.ExecuteTemplate(w, "base", mainRoute); err != nil {
 					http.NotFound(w, req)
 					return
 				}

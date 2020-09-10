@@ -3,6 +3,7 @@ package classes
 import (
 	"bufio"
 	"bytes"
+	"io"
 	"strings"
 
 	"github.com/wansing/perspective/core"
@@ -64,23 +65,30 @@ func init() {
 	})
 }
 
+// Do renders the content as markdown and then calls HTML.Do().
+//
+// The order is crucial.
+// If templates were processed first, then embedded content would be rendered as well.
+// Now instead, markdown rendering must take care to skip template instructions.
 type Markdown struct {
-	Html
+	HTML
 }
 
-// Where should markdown rendering happen? The data flow is:
-//
-// 1. content string, the best place to render markdown
-// 2. template parsing, rendering markdown would tear apart things like "# Section {{.Name}}", and godoc says the parse tree "should be treated as unexported by all other clients"
-// 3. template execution, does recursion, returns strings, rendering markdown would process next and included nodes as well
+func (t *Markdown) Do(r *core.Route) error {
 
-func (t *Markdown) OnPrepare(r *core.Route) error {
+	rendered := renderMarkdown(strings.NewReader(t.Node.Content()))
+	t.Node.SetContent(rendered)
+
+	return t.HTML.Do(r)
+}
+
+func renderMarkdown(input io.Reader) string {
 
 	// remove all tabs from the beginning of each line
 
 	var unindentedContent = &bytes.Buffer{}
 
-	lineScanner := bufio.NewScanner(strings.NewReader(t.Node.Content()))
+	lineScanner := bufio.NewScanner(input)
 	for lineScanner.Scan() {
 		line := lineScanner.Text()
 		for len(line) > 0 && line[0] == '\t' {
@@ -92,31 +100,19 @@ func (t *Markdown) OnPrepare(r *core.Route) error {
 
 	// render markdown
 
-	var renderedMarkdown = markdownParser.RenderToString(unindentedContent.Bytes())
-
-	// restore quotation marks within template instructions {{ }}
-
-	var result = &bytes.Buffer{}
-
-	var inBraces = false
-	var prevRune rune = 0
-	for _, r := range renderedMarkdown {
-		if r == '{' && prevRune == '{' {
-			inBraces = true
+	var tokens = markdownParser.Parse(unindentedContent.Bytes())
+	for i, t := range tokens {
+		if inline, ok := t.(*markdown.Inline); ok {
+			if strings.HasPrefix(inline.Content, "{{") && strings.HasSuffix(inline.Content, "}}") {
+				tokens[i] = &markdown.Text{
+					Content: inline.Content,
+					Lvl:     inline.Level(),
+				}
+			}
 		}
-		if r == '}' && prevRune == '}' {
-			inBraces = false
-		}
-		if inBraces && (r == '„' || r == '“' || r == '”') { // these take more than one byte, so we can't replace them in place
-			result.WriteByte('"')
-		} else {
-			result.WriteRune(r)
-		}
-		prevRune = r
 	}
 
-	t.Node.SetContent(result.String())
-
-	// this func shadows Html.OnPrepare, so we call it now
-	return t.Html.OnPrepare(r)
+	var result = &bytes.Buffer{}
+	markdownParser.RenderTokens(result, tokens)
+	return result.String()
 }

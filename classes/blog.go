@@ -1,90 +1,249 @@
 package classes
 
+// TODO rss/atom feed with pagination https://stackoverflow.com/questions/1301392/pagination-in-feeds-like-atom-and-rss
+
 import (
-	//	"bytes"
-	//	"golang.org/x/net/html"
-	//	"golang.org/x/net/html/atom"
-	//	"math"
-	//	"strconv"
-	//	"strings"
+	"bytes"
+	"fmt"
 	"html/template"
+	"io/ioutil"
+	"math"
+	"strconv"
+	"strings"
 
 	"github.com/wansing/perspective/core"
-	//	"github.com/wansing/perspective/util"
+	"github.com/wansing/perspective/util"
+	"gopkg.in/ini.v1"
 )
 
 func init() {
+
+	tmpl := template.Must(template.New("").Parse(`
+
+		{{define "metadata"}}
+			<div class="blog-blogentry-date">
+				geschrieben am {{.Request.FormatDateTime .Node.TsCreated}}
+				{{with .Node.Tags}}
+					&middot; Tags:
+					{{range $i, $tag := .}}
+						{{- if $i}},{{end}}
+						{{$tag -}}
+					{{end}}
+				{{end}}
+				{{with .Node.Timestamps}}
+					&middot; findet statt am:
+					{{range .}}
+						{{$.Request.FormatDateTime .}}
+					{{end}}
+				{{end}}
+			</div>
+		{{end}}
+
+		{{if .T.Node.Next}}
+			{{template "metadata" .T.Next}}
+			{{.Get "body"}}
+			<div class="blog-blogentry-back">
+				<a onclick="javascript:window.history.back(); return false;" href="{{.HrefView}}">Zurück</a>
+			</div>
+		{{else}}
+			{{range .T.Children}}
+				<div class="blog-blogentry">
+					{{template "metadata" .}}
+					<div class="blog-blogentry-teaser">
+						{{.Body}}
+						{{if .Cut}}
+							<p class="blog-blogentry-more">
+								<a href="{{.HrefView}}">{{$.T.ReadMore}}</a>
+							</p>
+						{{end}}
+					</div>
+				</div>
+			{{end}}
+			<div class="blog-pagelinks">
+				{{range .T.PageLinks}}
+					{{.}}
+				{{end}}
+			</div>
+		{{end}}`))
+
 	Register(&core.Class{
 		Create: func() core.Instance {
 			return &Blog{
-				page:     1,
-				perPage:  3,
-				readmore: "Read more",
+				page: 1,
+				tmpl: tmpl,
 			}
 		},
-		Name: "Blog",
-		Code: "blog",
-		Info: `
-		<p>You can set the parameters: <tt>per-page</tt> and <tt>readmore</tt>.</p>
-		<p>You can embed the parameters <tt>page</tt>, <tt>pages</tt>, <tt>page-url</tt> and <tt>pagelinks</tt>.</p>
-		<p>
-			Example:
-			<code>
-				[Back to page {{ .GetLocal "page" }} of {{ .GetLocal "pages" }}]({{ .GetLocal "page-url" }})
-				<br>
-				{{ .GetLocal "pagelinks" }}
-			</code>
-		</p>`,
+		Name:                 "Blog",
+		Code:                 "blog",
+		Info:                 ``,
 		SelectOrder:          core.ChronologicallyDesc,
 		FeaturedChildClasses: []string{"markdown"},
 	})
 }
 
+/*
+	// This cat-include approach is not feasible because:
+	// * it can't crop the blog entry at <!-- more -->
+	// * HrefView() omits the slug of the entry because it thinks that it has been included literally
+
+	childBranch := newBranch()
+	childBranch.root = child.GetLeaf()
+	im.includes[child.slug] = make(map[string]*Branch)
+	im.includes[child.slug][""] = childBranch
+
+	im.ascVars.AddString("body", false, `<a href="` + child.HrefView() + `/` + child.slug + `"><cat-include>` + child.slug + `</cat-include></a>`)
+*/
+
 type Blog struct {
-	Markdown
+	core.Base
+	Children []*blogChild
+	Next     blogNode
 	page     int // starting with 1
 	pages    int
-	perPage  int    // parameter:per-page
-	readmore string // parameter:readmore
-	Children []template.HTML
+	perPage  int
+	ReadMore string
+	tmpl     *template.Template
 }
 
-func (t *Blog) OnPrepare(r *core.Route) error {
+// Node plus Request, so we can localize or internationalize things
+type blogNode struct {
+	*core.Node
+	*core.Request
+}
 
-	var offset = (t.page-1)*t.perPage
+type blogChild struct {
+	blogNode
+	Body template.HTML
+	Cut  bool
+}
 
-	children, err := t.Node.GetReleasedChildrenNodes(core.ChronologicallyDesc, t.perPage, offset)
-	if err != nil {
+func (t *Blog) AdditionalSlugs() []string {
+	if t.page > 1 {
+		return []string{"page", strconv.Itoa(t.page)}
+	}
+	return nil
+}
+
+func (t *Blog) Do(r *core.Route) error {
+
+	// take segment page/123 from queue before calling Recurse
+
+	if r.Queue.PopIf("page") {
+		pageStr, _ := r.Queue.Pop()
+		t.page, _ = strconv.Atoi(pageStr.Key)
+		if t.page == 1 {
+			r.Set(
+				"head",
+				fmt.Sprintf(`<link rel="canonical" href="%s" />%s`, r.Node.HrefView(), r.Get("head")),
+			)
+		}
+	}
+
+	if err := r.Recurse(); err != nil {
 		return err
 	}
 
-	for _, c := range children {
+	// parse content as ini
 
-		// maybe move into GetReleasedChildrenNodes?
-		if err := c.RequirePermission(core.Read, r.User); err != nil {
-			continue
+	var cfg, err = ini.Load([]byte(r.Node.Content()))
+	if err != nil {
+		return err
+	}
+	var data = cfg.Section("").KeysHash()
+
+	t.perPage, _ = strconv.Atoi(data["per-page"])
+	if t.perPage <= 0 {
+		t.perPage = 10
+	}
+
+	if childrenCount, err := t.Node.CountReleasedChildren(0); err == nil {
+		t.pages = int(math.Ceil(float64(childrenCount) / float64(t.perPage)))
+	} else {
+		t.pages = 1
+	}
+
+	if t.page < 1 {
+		t.page = 1
+	}
+
+	if t.page > t.pages {
+		t.page = t.pages
+	}
+
+	t.ReadMore = data["readmore"]
+	if t.ReadMore == "" {
+		t.ReadMore = "Read more"
+	}
+
+	if r.Node.Next != nil {
+		t.Next = blogNode{
+			Node:    r.Node.Next,
+			Request: r.Request,
 		}
+	} else {
 
-		c.Instance = TruncateMore{c.Instance}
+		// Populate Children. This is not a func on Blog because we need stuff from Route for the localization.
 
-		childRoute, err := core.NewRoute(r.Request, core.NewQueue(""))
+		children, err := t.Node.GetReleasedChildrenNodes(r.User, core.ChronologicallyDesc, t.perPage, (t.page-1)*t.perPage)
 		if err != nil {
 			return err
 		}
 
-		if err = childRoute.Execute(c); err != nil {
-			return err
-		}
+		for _, child := range children {
 
-		t.Children = append(t.Children, template.HTML(childRoute.Get("body")))
+			// render body
+
+			childRoute := &core.Route{
+				Node:    child,
+				Request: r.Request,
+				Queue:   core.NewQueue(""),
+			}
+
+			if err := child.Do(childRoute); err != nil {
+				return err
+			}
+
+			body, cut := util.CutMore(string(childRoute.Get("body")))
+
+			bodyBytes, err := ioutil.ReadAll(
+				util.AnchorHeading(
+					strings.NewReader(body),
+					fmt.Sprintf(`<a href="%s" class="%s" id="%s">`, child.HrefView(), "blog-blogentry-headline", child.Slug()),
+				),
+			)
+			if err != nil {
+				return err
+			}
+
+			t.Children = append(t.Children, &blogChild{
+				blogNode: blogNode{
+					Node:    child,
+					Request: r.Request,
+				},
+				Body: template.HTML(bodyBytes),
+				Cut:  cut,
+			})
+		}
 	}
 
-	t.Node.SetContent(
-		`{{ range .T.Children }}
-			<div>
-				{{ . }}
-			</div>
-		{{ end }}`,
-	)
+	buf := &bytes.Buffer{}
+	if err := t.tmpl.Execute(buf, r); err != nil {
+		return err
+	}
+	r.Set("body", buf.String())
+
 	return nil
+}
+
+func (t *Blog) PageLinks() []template.HTML {
+	return util.PageLinks(
+		t.page,
+		t.pages,
+		func(page int, name string) string {
+			return `<a href="` + t.Node.HrefView() + `/page/` + strconv.Itoa(page) + `">` + name + `</a>`
+		},
+		func(page int, name string) string {
+			return `<span>` + strconv.Itoa(page) + `</span>`
+		},
+	)
 }

@@ -107,30 +107,30 @@ func (c *CoreDB) GetAllWorkflowAssignments() (map[int]map[bool]*auth.Workflow, e
 }
 
 // GetLatestNode shadows CoreDB.NodeDB.GetLatestNode.
-func (c *CoreDB) GetLatestNode(parentId int, slug string) (*Node, error) {
-	node, err := c.NodeDB.GetLatestNode(parentId, slug)
+func (c *CoreDB) GetLatestNode(parent *Node, slug string) (*Node, error) {
+	node, err := c.NodeDB.GetLatestNode(parent.Id(), slug)
 	if err != nil {
 		return nil, err
 	}
-	return c.newNode(node)
+	return c.NewNode(parent, node)
 }
 
 // GetReleasedNode shadows CoreDB.NodeDB.GetReleasedNode.
-func (c *CoreDB) GetReleasedNode(parentId int, slug string) (*Node, error) {
-	node, err := c.NodeDB.GetReleasedNode(parentId, slug)
+func (c *CoreDB) GetReleasedNode(parent *Node, slug string) (*Node, error) {
+	node, err := c.NodeDB.GetReleasedNode(parent.Id(), slug)
 	if err != nil {
 		return nil, err
 	}
-	return c.newNode(node)
+	return c.NewNode(parent, node)
 }
 
 // GetVersionNode shadows CoreDB.NodeDB.GetVersionNode.
-func (c *CoreDB) GetVersionNode(parentId int, slug string, versionNo int) (*Node, error) {
-	node, err := c.NodeDB.GetVersionNode(parentId, slug, versionNo)
+func (c *CoreDB) GetVersionNode(parent *Node, slug string, versionNo int) (*Node, error) {
+	node, err := c.NodeDB.GetVersionNode(parent.Id(), slug, versionNo)
 	if err != nil {
 		return nil, err
 	}
-	return c.newNode(node)
+	return c.NewNode(parent, node)
 }
 
 // InternalUrlByNodeId determines the internal path of the node with the given id.
@@ -207,7 +207,7 @@ func (c *CoreDB) requirePermissionById(required Permission, nodeId int, u auth.U
 
 // Open prefers the latest version and does not execute anything.
 // Does not return DBNode because DBNode has no Parent and Next.
-func (db *CoreDB) Open(user auth.User, parent *Node, queue *Queue) (*Node, error) {
+func (c *CoreDB) Open(user auth.User, parent *Node, queue *Queue) (*Node, error) {
 
 	if queue.Len() > 16 {
 		return nil, errors.New("queue too deep")
@@ -227,22 +227,21 @@ func (db *CoreDB) Open(user auth.User, parent *Node, queue *Queue) (*Node, error
 	var node *Node
 
 	if segment.Version == DefaultVersion {
-		node, err = db.GetLatestNode(parentId, segment.Key)
+		node, err = c.GetLatestNode(parent, segment.Key)
 	} else {
-		node, err = db.GetVersionNode(parentId, segment.Key, segment.Version)
+		node, err = c.GetVersionNode(parent, segment.Key, segment.Version)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("open (%d, %s): %w", parentId, segment.Key, err) // %w wraps err
 	}
 
-	node.Parent = parent
 	node.Prev = parent
 
 	if err := node.RequirePermission(Read, user); err != nil {
 		return nil, err
 	}
 
-	if node.Next, err = db.Open(user, node, queue); err != nil {
+	if node.Next, err = c.Open(user, node, queue); err != nil {
 		return nil, err
 	}
 

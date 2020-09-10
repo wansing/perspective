@@ -30,11 +30,13 @@ func (t *Carousel) Files() ([]os.FileInfo, error) {
 	return t.Folder().Files()
 }
 
-func (t *Carousel) OnPrepare(r *core.Route) error {
+func (t *Carousel) Do(r *core.Route) error {
+
 	r.SetGlobal("include-bootstrap-4-css", "true")
 	r.SetGlobal("include-bootstrap-4-js", "true")
 	r.SetGlobal("include-jquery-3", "true")
 
+	// ignore existing content
 	t.Node.SetContent(
 		`<div id="{{ .T.CarouselId }}" class="carousel slide" data-ride="carousel">
 			<ol class="carousel-indicators">
@@ -55,7 +57,7 @@ func (t *Carousel) OnPrepare(r *core.Route) error {
 				<span class="carousel-control-next-icon" aria-hidden="true"></span>
 				<span class="sr-only">Next</span>
 			</a>
-		</div>` + t.Node.Content())
+		</div>`)
 
-	return nil
+	return r.Recurse()
 }

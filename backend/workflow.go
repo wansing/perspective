@@ -36,7 +36,7 @@ var workflowTmpl = tmpl(`<h1>Workflow &raquo;{{ .Selected.Name }}&laquo;</h1>
 		<button class="btn btn-primary" type="submit">Save</button>
 	</form>
 
-	<a href="/backend/workflow/{{ .Selected.Id }}/delete">`)
+	<a href="workflow/{{ .Selected.Id }}/delete">`)
 
 type workflowData struct {
 	*Route

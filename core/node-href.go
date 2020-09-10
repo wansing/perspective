@@ -58,7 +58,7 @@ func (n *Node) whereami(external bool, versionFunc func(*Node) int) []string {
 	}
 
 	if external {
-		where = append(where, n.ExternalURLSegments()...)
+		where = append(where, n.AdditionalSlugs()...)
 	}
 
 	return where

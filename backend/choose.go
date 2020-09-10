@@ -103,7 +103,7 @@ func (data *chooseData) PageLinks() []template.HTML {
 		data.page,
 		pagesTotal,
 		func(page int, name string) string {
-			return fmt.Sprintf(`<li class="page-item"><a class="page-link" href="%s">%s</a></li>`, hrefBackend(fmt.Sprintf("choose/page/%d", page), data.Selected), name)
+			return fmt.Sprintf(`<li class="page-item"><a class="page-link" href="%s">%s</a></li>`, hrefChoose(data.Selected, page), name)
 		},
 		func(page int, name string) string {
 			return fmt.Sprintf(`<li class="page-item active"><span class="page-link">%d</span></li>`, page)

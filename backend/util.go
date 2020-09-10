@@ -25,7 +25,7 @@ func Breadcrumbs(e *core.Node, linkLast bool) template.HTML {
 		}
 		buf.WriteString(`">`)
 		if !isLast || linkLast {
-			buf.WriteString(`<a href="/backend` + hrefChoose(i, 0) + `">`)
+			buf.WriteString(`<a href="` + hrefChoose(i, 0) + `">`)
 		}
 		buf.WriteString(i.Slug())
 		if !isLast || linkLast {
@@ -76,9 +76,11 @@ func SelectChildClass(reg core.ClassRegistry, e *core.Node, selectedCode string)
 	return template.HTML(w.String())
 }
 
+// href funcs return relative links without "/backend", so they are prefixed by <base href="/backend/">
+
 // href in the backend, except for /choose
 func hrefBackend(action string, e *core.Node) string {
-	var href = fmt.Sprintf("/%s%s", action, e.Href(false, nil))
+	var href = fmt.Sprintf("%s%s", action, e.Href(false, nil))
 	return strings.TrimSuffix(href, "/")
 }
 
@@ -86,14 +88,14 @@ func hrefChoose(e *core.Node, page int) string {
 	if page == 0 {
 		page = 1 // we count pages from 1
 	}
-	var href = fmt.Sprintf("/choose/%d/%s", page, e.Href(false, nil))
+	var href = fmt.Sprintf("choose/%d%s", page, e.Href(false, nil))
 	return strings.TrimSuffix(href, "/")
 }
 
 // href edit with version number
 func hrefBackendVersion(action string, e *core.Node, versionNr int) string {
 	var customVersionNodeId = e.Id() // could be a function parameter, but that is not required at the moment
-	return fmt.Sprintf("/%s%s", action, e.Href(false, func(i *core.Node) int {
+	return fmt.Sprintf("%s%s", action, e.Href(false, func(i *core.Node) int {
 		if i.Id() == customVersionNodeId {
 			return versionNr
 		}

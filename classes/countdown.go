@@ -3,10 +3,8 @@ package classes
 // ignores daylight saving time
 
 import (
-	"errors"
 	"fmt"
 	"html/template"
-	"strconv"
 	"time"
 
 	"github.com/wansing/perspective/core"
@@ -15,7 +13,9 @@ import (
 func init() {
 	Register(&core.Class{
 		Create: func() core.Instance {
-			return &Countdown{}
+			return &Countdown{
+				End: time.Now(),
+			}
 		},
 		Name: "Countdown",
 		Code: "countdown",
@@ -24,57 +24,36 @@ func init() {
 }
 
 type Countdown struct {
-	core.Base
-	EndUnix int64
+	Raw // required for template execution
+	End time.Time
 }
 
-func (t *Countdown) UniqueId() string {
-	return strconv.Itoa(t.Id()) // t.Id() == t.Base.Node.DBNode.Id()
+func (t *Countdown) IdJS() template.JS {
+	return template.JS(t.Node.Id())
 }
 
-func (t *Countdown) UniqueIdJS() template.JS {
-	return template.JS(t.UniqueId())
+func (t *Countdown) Days() template.HTML {
+	return template.HTML(fmt.Sprintf(`<span id="days-%s">%02d</span>`, t.Node.Id(), t.End.Sub(time.Now()).Hours() / 24))
 }
 
-func (t *Countdown) OnPrepare(r *core.Route) error {
+func (t *Countdown) Hours() template.HTML {
+	return template.HTML(fmt.Sprintf(`<span id="hours-%s">%02d</span>`, t.Node.Id(), t.End.Sub(time.Now()).Hours()))
+}
 
-	// get local variable
+func (t *Countdown) Minutes() template.HTML {
+	return template.HTML(fmt.Sprintf(`<span id="minutes-%s">%02d</span>`, t.Node.Id(), t.End.Sub(time.Now()).Minutes()))
+}
 
-	endStr := r.GetLocalStr("endtime")
-	if endStr == "" {
-		endStr = "1 Jan 2100 00:00:00 -0000"
-	}
+func (t *Countdown) Seconds() template.HTML {
+	return template.HTML(fmt.Sprintf(`<span id="seconds-%s">%02d</span>`, t.Node.Id(), t.End.Sub(time.Now()).Seconds()))
+}
 
-	end, err := time.Parse("_2 Jan 2006 15:04:05 -0700", endStr)
-	if err != nil {
-		return errors.New("could not parse endtime") // TODO not shown atm?
-	}
+func (t *Countdown) SetEnd(end string) (err error) {
+	t.End, err = time.Parse("_2 Jan 2006 15:04:05 -0700", end)
+	return
+}
 
-	t.EndUnix = end.Unix()
-
-	// set local variables
-
-	var days int64
-	var hours int64
-	var minutes int64
-	var seconds int64
-
-	diff := t.EndUnix - time.Now().Unix()
-	if diff < 0 {
-		diff = 0
-	}
-
-	days = diff / 86400
-	diff %= 86400
-	hours = diff / 3600
-	diff %= 3600
-	minutes = diff / 60
-	seconds = diff % 60
-
-	r.SetLocal("days", fmt.Sprintf(`<span id="days-%s">%02d</span>`, t.UniqueId(), days))
-	r.SetLocal("hours", fmt.Sprintf(`<span id="hours-%s">%02d</span>`, t.UniqueId(), hours))
-	r.SetLocal("minutes", fmt.Sprintf(`<span id="minutes-%s">%02d</span>`, t.UniqueId(), minutes))
-	r.SetLocal("seconds", fmt.Sprintf(`<span id="seconds-%s">%02d</span>`, t.UniqueId(), seconds))
+func (t *Countdown) Do(r *core.Route) error {
 
 	t.Node.SetContent(
 		`{{define "head"}}
@@ -89,7 +68,7 @@ func (t *Countdown) OnPrepare(r *core.Route) error {
 					return n;
 				}
 
-				function countdown{{.T.UniqueIdJS}}() {
+				function countdown{{.T.IdJS}}() {
 
 					var end = {{.T.EndUnix}};
 					var now = Math.floor(new Date().getTime() / 1000);
@@ -106,33 +85,33 @@ func (t *Countdown) OnPrepare(r *core.Route) error {
 					var minutes = Math.floor(diff / 60);
 					var seconds = diff % 60;
 
-					elementDays = document.getElementById("days-{{.T.UniqueId}}");
+					elementDays = document.getElementById("days-{{.T.Node.Id}}");
 					if(elementDays) {
 						elementDays.innerHTML = days;
 					}
 
-					elementHours = document.getElementById("hours-{{.T.UniqueId}}");
+					elementHours = document.getElementById("hours-{{.T.Node.Id}}");
 					if(elementHours) {
 						elementHours.innerHTML = pad(hours);
 					}
 
-					elementMinutes = document.getElementById("minutes-{{.T.UniqueId}}");
+					elementMinutes = document.getElementById("minutes-{{.T.Node.Id}}");
 					if(elementMinutes) {
 						elementMinutes.innerHTML = pad(minutes);
 					}
 
-					elementSeconds = document.getElementById("seconds-{{.T.UniqueId}}");
+					elementSeconds = document.getElementById("seconds-{{.T.Node.Id}}");
 					if(elementSeconds) {
 						elementSeconds.innerHTML = pad(seconds);
 					}
 
-					setTimeout(countdown{{.T.UniqueIdJS}}, 1000);
+					setTimeout(countdown{{.T.IdJS}}, 1000);
 				}
 
-				countdown{{.T.UniqueIdJS}}();
+				countdown{{.T.IdJS}}();
 
 			</script>
 		{{end}}` + t.Node.Content())
 
-	return nil
+	return t.Raw.Do(r)
 }

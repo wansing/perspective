@@ -12,12 +12,12 @@ func cleanTag(tag string) string {
 
 type IndexDB struct {
 	*sql.DB
-	clearTagStmt      *sql.Stmt
-	clearTsStmt       *sql.Stmt
-	insertTagStmt     *sql.Stmt
-	insertTsStmt      *sql.Stmt
-	recentByTagStmt   *sql.Stmt
-	upcomingByTagStmt *sql.Stmt
+	clearTag      *sql.Stmt
+	clearTs       *sql.Stmt
+	insertTag     *sql.Stmt
+	insertTs      *sql.Stmt
+	recentByTag   *sql.Stmt
+	upcomingByTag *sql.Stmt
 }
 
 func NewIndexDB(db *sql.DB) *IndexDB {
@@ -43,23 +43,27 @@ func NewIndexDB(db *sql.DB) *IndexDB {
 
 	var indexDB = &IndexDB{}
 	indexDB.DB = db
-	indexDB.clearTagStmt = mustPrepare(db, "DELETE FROM element_tag WHERE elementId = ?")
-	indexDB.clearTsStmt = mustPrepare(db, "DELETE FROM element_ts WHERE elementId = ?")
-	indexDB.insertTagStmt = mustPrepare(db, "INSERT INTO element_tag (parentId, elementId, versionTsChanged, tag) VALUES (?, ?, ?, ?)")
-	indexDB.insertTsStmt = mustPrepare(db, "INSERT INTO element_ts (parentId, elementId, ts) VALUES (?, ?, ?)")
-	indexDB.recentByTagStmt = mustPrepare(db, "SELECT elementId FROM element_tag WHERE parentId = ? AND versionTsChanged <= ? AND tag = ? ORDER BY versionTsChanged DESC LIMIT ? OFFSET ?")
-	indexDB.upcomingByTagStmt = mustPrepare(db, "SELECT element_ts.elementId FROM element_tag, element_ts WHERE element_ts.parentId = ? AND element_ts.elementId = element_tag.elementId AND element_ts.ts >= ? AND element_tag.tag = ? ORDER BY ts ASC LIMIT ? OFFSET ?")
+	indexDB.clearTag = mustPrepare(db, "DELETE FROM element_tag WHERE elementId = ?")
+	indexDB.clearTs = mustPrepare(db, "DELETE FROM element_ts WHERE elementId = ?")
+	indexDB.insertTag = mustPrepare(db, "INSERT INTO element_tag (parentId, elementId, versionTsChanged, tag) VALUES (?, ?, ?, ?)")
+	indexDB.insertTs = mustPrepare(db, "INSERT INTO element_ts (parentId, elementId, ts) VALUES (?, ?, ?)")
+	indexDB.recentByTag = mustPrepare(db, "SELECT elementId FROM element_tag WHERE parentId = ? AND versionTsChanged <= ? AND tag = ? ORDER BY versionTsChanged DESC LIMIT ? OFFSET ?")
+	indexDB.upcomingByTag = mustPrepare(db, "SELECT element_ts.elementId FROM element_tag, element_ts WHERE element_ts.parentId = ? AND element_ts.elementId = element_tag.elementId AND element_ts.ts >= ? AND element_tag.tag = ? ORDER BY ts ASC LIMIT ? OFFSET ?")
 	return indexDB
 }
 
-func (db *IndexDB) AddTags(parentId int, nodeId int, nodeTsChanged int64, tags []string) error {
+func (db *IndexDB) SetTags(parentId int, nodeId int, nodeTsChanged int64, tags []string) error {
 
 	tx, err := db.Begin() // faster than independent inserts in SQLite
 	if err != nil {
 		return err
 	}
 
-	var stmt = tx.Stmt(db.insertTagStmt)
+	if _, err := tx.Stmt(db.clearTag).Exec(nodeId); err != nil {
+		return err
+	}
+
+	var stmt = tx.Stmt(db.insertTag)
 
 	for _, tag := range tags {
 
@@ -68,8 +72,7 @@ func (db *IndexDB) AddTags(parentId int, nodeId int, nodeTsChanged int64, tags [
 			continue
 		}
 
-		_, err := stmt.Exec(parentId, nodeId, nodeTsChanged, tag)
-		if err != nil {
+		if _, err := stmt.Exec(parentId, nodeId, nodeTsChanged, tag); err != nil {
 			tx.Rollback()
 			return err
 		}
@@ -78,34 +81,27 @@ func (db *IndexDB) AddTags(parentId int, nodeId int, nodeTsChanged int64, tags [
 	return tx.Commit()
 }
 
-func (db *IndexDB) AddTimestamps(parentId int, nodeId int, timestamps []int64) error {
+func (db *IndexDB) SetTimestamps(parentId int, nodeId int, timestamps []int64) error {
 
 	tx, err := db.Begin() // faster than independent inserts in SQLite
 	if err != nil {
 		return err
 	}
 
-	var stmt = tx.Stmt(db.insertTsStmt)
+	if _, err := tx.Stmt(db.clearTs).Exec(nodeId); err != nil {
+		return err
+	}
+
+	var stmt = tx.Stmt(db.insertTs)
 
 	for _, ts := range timestamps {
-		_, err := stmt.Exec(parentId, nodeId, ts)
-		if err != nil {
+		if _, err := stmt.Exec(parentId, nodeId, ts); err != nil {
 			tx.Rollback()
 			return err
 		}
 	}
 
 	return tx.Commit()
-}
-
-func (db *IndexDB) ClearIndex(nodeId int) error {
-	if _, err := db.clearTagStmt.Exec(nodeId); err != nil {
-		return err
-	}
-	if _, err := db.clearTsStmt.Exec(nodeId); err != nil {
-		return err
-	}
-	return nil
 }
 
 func (db *IndexDB) RecentChildrenByTag(parentId int, now int64, tag string, limit, offset int) ([]int, error) {
@@ -115,7 +111,7 @@ func (db *IndexDB) RecentChildrenByTag(parentId int, now int64, tag string, limi
 		return nil, errors.New("no tag")
 	}
 
-	rows, err := db.recentByTagStmt.Query(parentId, now, tag, limit, offset)
+	rows, err := db.recentByTag.Query(parentId, now, tag, limit, offset)
 	if err != nil {
 		return nil, err
 	}
@@ -139,7 +135,7 @@ func (db *IndexDB) UpcomingChildrenByTag(parentId int, now int64, tag string, li
 		return nil, errors.New("no tag")
 	}
 
-	rows, err := db.upcomingByTagStmt.Query(parentId, now, tag, limit, offset)
+	rows, err := db.upcomingByTag.Query(parentId, now, tag, limit, offset)
 	if err != nil {
 		return nil, err
 	}

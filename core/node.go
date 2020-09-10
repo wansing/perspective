@@ -3,6 +3,7 @@ package core
 import (
 	"errors"
 	"fmt"
+	"html/template"
 	"net/url"
 	"strings"
 
@@ -64,24 +65,26 @@ type Node struct {
 	Parent     *Node // parent in node hierarchy, required for permission checking, nil if node is root
 	Prev       *Node // predecessor in route, nil if node is root (or included, which makes it the root of a route)
 	Next       *Node // successor in route, nil if node is leaf
-	pushed     bool  // whether the slug of this node had been pushed to the queue
+	Tags       []string
+	Timestamps []int64
+	pushed     bool // whether the slug of this node had been pushed to the queue
 	localVars  map[string]string
-	tags       []string
-	timestamps []int64
 
 	overrideContent bool
 	content         string
 }
 
-func (db *CoreDB) newNode(dbNode DBNode) (*Node, error) {
+// NewNode creates a Node. You must set Prev and Next on your own.
+func (c *CoreDB) NewNode(parent *Node, dbNode DBNode) (*Node, error) {
 
 	var node = &Node{}
-	node.db = db
+	node.db = c
 	node.DBNode = dbNode
 	node.localVars = make(map[string]string)
+	node.Parent = parent
 
 	var ok bool
-	node.Class, ok = db.ClassRegistry.Get(dbNode.ClassName())
+	node.Class, ok = c.ClassRegistry.Get(dbNode.ClassName())
 	if !ok {
 		return nil, fmt.Errorf("class %s not found", dbNode.ClassName())
 	}
@@ -101,19 +104,28 @@ func (n *Node) Content() string {
 	}
 }
 
+func (n *Node) Id() int {
+	if n != nil {
+		return n.DBNode.Id()
+	}
+	return 0 // like parentId of root
+}
+
 // GetChildrenNodes does not shadow Node.DBNode.GetReleasedChildren
-func (n *Node) GetReleasedChildrenNodes(order Order, limit, offset int) ([]*Node, error) {
+func (n *Node) GetReleasedChildrenNodes(user auth.User, order Order, limit, offset int) ([]*Node, error) {
 	var children, err = n.DBNode.GetReleasedChildren(order, limit, offset)
 	if err != nil {
 		return nil, err
 	}
 	var result = make([]*Node, 0, len(children))
 	for _, c := range children {
-		node, err := n.db.newNode(c)
+		node, err := n.db.NewNode(n, c)
 		if err != nil {
 			return nil, err
 		}
-		node.Parent = n
+		if err := node.RequirePermission(Read, user); err != nil {
+			continue
+		}
 		result = append(result, node)
 	}
 	return result, nil
@@ -122,6 +134,15 @@ func (n *Node) GetReleasedChildrenNodes(order Order, limit, offset int) ([]*Node
 func (n *Node) SetContent(newContent string) {
 	n.content = newContent
 	n.overrideContent = true
+}
+
+func (n *Node) Depth() int {
+	var depth = 0
+	for n != nil {
+		depth++
+		n = n.Prev
+	}
+	return depth
 }
 
 // Leaf returns the last node of the relation which is created by Node.Next.
@@ -146,10 +167,6 @@ func (n *Node) Root() *Node {
 		}
 	}
 	return n
-}
-
-func (n *Node) isInMainRoute() bool {
-	return n.Root().Id() == 1 // id of root node, hardcoded
 }
 
 // GetAssignedRules returns all access rules which are assigned with the receiver node.
@@ -225,6 +242,22 @@ func (c *CoreDB) Edit(n *Node, newContent, newVersionNote, username string) erro
 	return nil
 }
 
+// GetLocal returns the value of a local variable as HTML.
+func (n *Node) GetLocal(varName string) template.HTML {
+	return template.HTML(n.localVars[varName])
+}
+
+// GetLocal returns the value of a local variable as a string.
+func (n *Node) GetLocalStr(varName string) string {
+	return n.localVars[varName]
+}
+
+// SetLocal sets a local variable.
+func (n *Node) SetLocal(name, value string) interface{} {
+	n.localVars[name] = value
+	return nil
+}
+
 // SetClass shadows CoreDB.NodeDB.SetClass.
 func (c *CoreDB) SetClass(n *Node, className string) error {
 	className = strings.TrimSpace(className)
@@ -289,31 +322,27 @@ func (c *CoreDB) SetWorkflowGroup(n *Node, newWorkflowGroup int) error {
 
 	if oldMaxWGZeroVersionNo != n.MaxWGZeroVersionNo() { // if maxWGZeroVersionNo has changed
 
-		var parentId = 0
-		if n.Parent != nil {
-			parentId = n.Parent.Id()
-		}
-
 		var err error
-		n, err = c.GetReleasedNode(parentId, n.Slug())
+		n.DBNode, err = c.GetReleasedNodeById(n.Id())
 		if err != nil {
 			return err
 		}
 
-		var tmpRoute = newDummyRoute()
-		if err := tmpRoute.Execute(n); err != nil {
+		var tmpRoute = &Route{
+			Request: newDummyRequest(),
+			Queue:   NewQueue(""),
+			Node:    n,
+		}
+
+		if err := n.Do(tmpRoute); err != nil {
 			return err
 		}
 
-		if err := n.ClearIndex(); err != nil {
+		if err := n.SetTags(n.Tags); err != nil {
 			return err
 		}
 
-		if err := n.AddTags(n.tags); err != nil {
-			return err
-		}
-
-		if err := n.AddTimestamps(n.timestamps); err != nil {
+		if err := n.SetTimestamps(n.Timestamps); err != nil {
 			return err
 		}
 	}
