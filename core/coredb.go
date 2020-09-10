@@ -106,31 +106,43 @@ func (c *CoreDB) GetAllWorkflowAssignments() (map[int]map[bool]*auth.Workflow, e
 	return all, nil
 }
 
-// GetLatestNode shadows CoreDB.NodeDB.GetLatestNode.
 func (c *CoreDB) GetLatestNode(parent *Node, slug string) (*Node, error) {
-	node, err := c.NodeDB.GetLatestNode(parent.Id(), slug)
+	dbn, err := c.NodeDB.GetNode(parent.Id(), slug)
 	if err != nil {
 		return nil, err
 	}
-	return c.NewNode(parent, node)
+	n, err := c.NewNode(parent, dbn)
+	if err != nil {
+		return nil, err
+	}
+	n.DBVersion, err = c.NodeDB.GetVersion(n, n.MaxVersionNo())
+	return n, err
 }
 
-// GetReleasedNode shadows CoreDB.NodeDB.GetReleasedNode.
 func (c *CoreDB) GetReleasedNode(parent *Node, slug string) (*Node, error) {
-	node, err := c.NodeDB.GetReleasedNode(parent.Id(), slug)
+	dbn, err := c.NodeDB.GetNode(parent.Id(), slug)
 	if err != nil {
 		return nil, err
 	}
-	return c.NewNode(parent, node)
+	n, err := c.NewNode(parent, dbn)
+	if err != nil {
+		return nil, err
+	}
+	n.DBVersion, err = c.NodeDB.GetVersion(n, n.MaxWGZeroVersionNo())
+	return n, err
 }
 
-// GetVersionNode shadows CoreDB.NodeDB.GetVersionNode.
 func (c *CoreDB) GetVersionNode(parent *Node, slug string, versionNo int) (*Node, error) {
-	node, err := c.NodeDB.GetVersionNode(parent.Id(), slug, versionNo)
+	dbn, err := c.NodeDB.GetNode(parent.Id(), slug)
 	if err != nil {
 		return nil, err
 	}
-	return c.NewNode(parent, node)
+	n, err := c.NewNode(parent, dbn)
+	if err != nil {
+		return nil, err
+	}
+	n.DBVersion, err = c.NodeDB.GetVersion(n, versionNo)
+	return n, err
 }
 
 // InternalUrlByNodeId determines the internal path of the node with the given id.

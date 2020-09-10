@@ -13,16 +13,7 @@ import (
 
 var ErrUnauthorized = errors.New("unauthorized")
 
-type DBVersionStub interface {
-	VersionNo() int // ascending
-	VersionNote() string
-	TsChanged() int64
-	WorkflowGroupId() int // one from the workflow, or zero if the version finished its workflow and is visible to all who have the right to read it
-}
-
 type DBNode interface {
-
-	// node
 	Id() int
 	ParentId() int
 	Slug() string
@@ -30,35 +21,53 @@ type DBNode interface {
 	TsCreated() int64
 	MaxVersionNo() int
 	MaxWGZeroVersionNo() int // The number of the latest version with workflow_group == 0, else zero. Redundant, but helpful.
+}
 
-	// version
+type DBVersionStub interface {
+	TsChanged() int64
+	VersionNo() int // ascending
+	VersionNote() string
+	WorkflowGroupId() int // one from the workflow, or zero if the version finished its workflow and is visible to all who have the right to read it
+}
+
+type DBVersion interface {
 	DBVersionStub
 	Content() string
-	Versions() ([]DBVersionStub, error)
+}
 
-	CountChildren() (int, error)
-	CountReleasedChildren(minTsCreated int64) (int, error)
-	GetReleasedChildren(order Order, limit, offset int) ([]DBNode, error)
+type DBNodeVersionStub interface {
+	DBNode
+	DBVersionStub
+}
+
+type DBNodeVersion interface {
+	DBNode
+	DBVersion
 }
 
 type NodeDB interface {
-	AddVersion(n DBNode, content, versionNote string) error
+	AddVersion(n DBNode, content, versionNote string, workflowGroupId int) error
+	CountChildren(n DBNode) (int, error)
+	CountReleasedChildren(n DBNode, minTsCreated int64) (int, error)
 	DeleteNode(n DBNode) error
+	GetChildren(n DBNode, order Order, limit, offset int) ([]DBNode, error)
+	GetNode(parentId int, slug string) (DBNode, error)
 	GetParentAndSlug(id int) (parentId int, slug string, err error)
-	GetLatestNode(parentId int, slug string) (DBNode, error)                 // latest version, error if node does not exist, empty version if no version exists
-	GetReleasedNode(parentId int, slug string) (DBNode, error)               // latest released version or error
-	GetReleasedNodeById(id int) (DBNode, error)                              // latest released version or error
-	GetVersionNode(parentId int, slug string, versionNo int) (DBNode, error) // specific version or error
+	GetReleasedChildren(n DBNode, order Order, limit, offset int) ([]DBNodeVersion, error)
+	GetReleasedNodeById(id int) (DBNodeVersion, error) // latest released version or error
+	GetVersion(parent DBNode, versionNo int) (DBVersion, error)
 	InsertNode(parentId int, slug string, class string) error
 	IsNotFound(err error) bool
 	SetClass(n DBNode, className string) error
 	SetParent(n DBNode, parent DBNode) error
 	SetSlug(n DBNode, slug string) error
-	SetWorkflowGroup(n DBNode, groupId int) error // sets workflow group id of the current version
+	SetWorkflowGroup(n DBNodeVersionStub, groupId int) error // sets workflow group id of the current version
+	Versions(n DBNode) ([]DBVersionStub, error)
 }
 
 type Node struct {
 	DBNode
+	DBVersion
 	Instance
 	Class      *Class
 	db         *CoreDB
@@ -77,22 +86,23 @@ type Node struct {
 // NewNode creates a Node. You must set Prev and Next on your own.
 func (c *CoreDB) NewNode(parent *Node, dbNode DBNode) (*Node, error) {
 
-	var node = &Node{}
-	node.db = c
-	node.DBNode = dbNode
-	node.localVars = make(map[string]string)
-	node.Parent = parent
+	var n = &Node{}
+	n.db = c
+	n.DBNode = dbNode
+	n.localVars = make(map[string]string)
+	n.Parent = parent
 
 	var ok bool
-	node.Class, ok = c.ClassRegistry.Get(dbNode.ClassName())
+	n.Class, ok = c.ClassRegistry.Get(dbNode.ClassName())
 	if !ok {
-		return nil, fmt.Errorf("class %s not found", dbNode.ClassName())
+		// TODO node.Class = NotFoundClass...
+		return n, fmt.Errorf("class %s not found", dbNode.ClassName())
 	}
 
-	node.Instance = node.Class.Create()
-	node.Instance.SetNode(node) // connect them the other way round
+	n.Instance = n.Class.Create()
+	n.Instance.SetNode(n) // connect them the other way round
 
-	return node, nil
+	return n, nil
 }
 
 // Content shadows Node.DBNode.Content.
@@ -100,20 +110,48 @@ func (n *Node) Content() string {
 	if n.overrideContent {
 		return n.content
 	} else {
-		return n.DBNode.Content()
+		return n.DBVersion.Content()
 	}
 }
 
+func (n *Node) CountChildren() (int, error) {
+	return n.db.CountChildren(n)
+}
+
+func (n *Node) CountReleasedChildren(minTsCreated int64) (int, error) {
+	return n.db.CountReleasedChildren(n, minTsCreated)
+}
+
+// Id shadows DBNode.Id.
+// If n (e.g. parent) is nil, it returns zero.
 func (n *Node) Id() int {
 	if n != nil {
 		return n.DBNode.Id()
 	}
-	return 0 // like parentId of root
+	return 0
 }
 
-// GetChildrenNodes does not shadow Node.DBNode.GetReleasedChildren
-func (n *Node) GetReleasedChildrenNodes(user auth.User, order Order, limit, offset int) ([]*Node, error) {
-	var children, err = n.DBNode.GetReleasedChildren(order, limit, offset)
+func (n *Node) GetChildren(user auth.User, order Order, limit, offset int) ([]DBNode, error) {
+	var children, err = n.db.GetChildren(n, order, limit, offset)
+	if err != nil {
+		return nil, err
+	}
+	var result = make([]DBNode, 0, len(children))
+	for _, c := range children {
+		node, err := n.db.NewNode(n, c)
+		if err != nil {
+			return nil, err
+		}
+		if err := node.RequirePermission(Read, user); err != nil {
+			continue
+		}
+		result = append(result, node)
+	}
+	return result, nil
+}
+
+func (n *Node) GetReleasedChildren(user auth.User, order Order, limit, offset int) ([]*Node, error) {
+	var children, err = n.db.GetReleasedChildren(n, order, limit, offset)
 	if err != nil {
 		return nil, err
 	}
@@ -215,6 +253,10 @@ func (n *Node) String() string {
 	return n.Slug()
 }
 
+func (n *Node) Versions() ([]DBVersionStub, error) {
+	return n.db.Versions(n)
+}
+
 // AddChild adds a child node to the receiver node.
 // It does not care for duplicated slugs, the database must prevent them.
 func (c *CoreDB) AddChild(n *Node, slug, className string) error {
@@ -233,9 +275,9 @@ func (c *CoreDB) DeleteNode(n *Node) error {
 }
 
 // Edit adds a version to the receiver node.
-func (c *CoreDB) Edit(n *Node, newContent, newVersionNote, username string) error {
+func (c *CoreDB) Edit(n *Node, newContent, newVersionNote, username string, workflowGroupId int) error {
 	if n.Content() != newContent {
-		if err := c.AddVersion(n.DBNode, newContent, fmt.Sprintf("[%s] %s", username, strings.TrimSpace(newVersionNote))); err != nil {
+		if err := c.AddVersion(n.DBNode, newContent, fmt.Sprintf("[%s] %s", username, strings.TrimSpace(newVersionNote)), workflowGroupId); err != nil {
 			return err
 		}
 	}
@@ -316,14 +358,14 @@ func (c *CoreDB) SetWorkflowGroup(n *Node, newWorkflowGroup int) error {
 
 	var oldMaxWGZeroVersionNo = n.MaxWGZeroVersionNo()
 
-	if err := c.NodeDB.SetWorkflowGroup(n.DBNode, newWorkflowGroup); err != nil {
+	if err := c.NodeDB.SetWorkflowGroup(n, newWorkflowGroup); err != nil {
 		return err
 	}
 
 	if oldMaxWGZeroVersionNo != n.MaxWGZeroVersionNo() { // if maxWGZeroVersionNo has changed
 
 		var err error
-		n.DBNode, err = c.GetReleasedNodeById(n.Id())
+		n.DBVersion, err = c.GetVersion(n, n.MaxWGZeroVersionNo())
 		if err != nil {
 			return err
 		}

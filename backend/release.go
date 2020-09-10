@@ -18,7 +18,7 @@ func release(w http.ResponseWriter, req *http.Request, r *Route, params httprout
 		return err
 	}
 
-	defer r.SeeOther(hrefBackendVersion("edit", selected, selected.VersionNo()))
+	defer r.SeeOther("/edit%s:%d", selected.HrefPath(), selected.VersionNo())
 
 	state, err := selected.ReleaseState(r.User)
 	if err != nil {

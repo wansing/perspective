@@ -16,16 +16,18 @@ var ErrAuth = errors.New("unauthorized")
 // we need the CoreDB (which is not exposed to user content) in the backend
 type Route struct {
 	*core.Route
-	db *core.CoreDB
+	Prefix string // with trailing slash
+	db     *core.CoreDB
 }
 
-func NewRoute(db *core.CoreDB, request *core.Request, path string) *Route {
+func NewRoute(db *core.CoreDB, request *core.Request, prefix, path string) *Route {
 	return &Route{
 		Route: &core.Route{
 			Request: request,
 			Queue:   core.NewQueue(path),
 		},
-		db: db,
+		Prefix: prefix + "/backend/",
+		db:     db,
 	}
 }
 
@@ -41,14 +43,14 @@ func (r *Route) WorkflowsWriteable() bool {
 	return r.db.Auth.WorkflowDB.Writeable()
 }
 
-func middleware(db *core.CoreDB, requireLoggedIn bool, f func(http.ResponseWriter, *http.Request, *Route, httprouter.Params) error) func(http.ResponseWriter, *http.Request, httprouter.Params) {
+func middleware(db *core.CoreDB, prefix string, requireLoggedIn bool, f func(http.ResponseWriter, *http.Request, *Route, httprouter.Params) error) func(http.ResponseWriter, *http.Request, httprouter.Params) {
 	return func(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
 
 		// similar to the code in func main
 
 		var request = db.NewRequest(w, req)
 
-		var mainRoute = NewRoute(db, request, req.URL.Path)
+		var mainRoute = NewRoute(db, request, prefix, req.URL.Path)
 		defer mainRoute.Cleanup()
 
 		if requireLoggedIn && !mainRoute.LoggedIn() {
@@ -76,7 +78,7 @@ var errorTmpl = tmpl(`
 		{{ .Err }}
 	</div>`)
 
-func NewBackendRouter(db *core.CoreDB) http.Handler {
+func NewBackendRouter(db *core.CoreDB, prefix string) http.Handler {
 
 	var router = httprouter.New()
 
@@ -86,29 +88,29 @@ func NewBackendRouter(db *core.CoreDB) http.Handler {
 	}
 
 	// public
-	router.GET("/", middleware(db, false, root))
-	GETAndPOST("/login", middleware(db, false, login))
+	router.GET("/", middleware(db, prefix, false, root))
+	GETAndPOST("/login", middleware(db, prefix, false, login))
 
 	// private
-	GETAndPOST("/access/*path", middleware(db, true, access))
-	router.GET("/choose/:page/*path", middleware(db, true, choose)) // "/choose/1/" will work, "/choose/1" won't. GET("/choose/:page") would match everyhing.
-	GETAndPOST("/class/*path", middleware(db, true, setClass))
-	GETAndPOST("/create/*path", middleware(db, true, create))
-	GETAndPOST("/create-root-node", middleware(db, true, createRootNode))
-	GETAndPOST("/delete/*path", middleware(db, true, del))
-	GETAndPOST("/edit/*path", middleware(db, true, edit))
-	GETAndPOST("/groups", middleware(db, true, groups))
-	GETAndPOST("/group/:id", middleware(db, true, group))
-	router.GET("/logout", middleware(db, true, logout))
-	GETAndPOST("/move/*path", middleware(db, true, move))
-	GETAndPOST("/release/*path", middleware(db, true, release))
-	GETAndPOST("/rename/*path", middleware(db, true, rename))
-	GETAndPOST("/revoke/*path", middleware(db, true, revoke))
-	router.GET("/rules", middleware(db, true, rules))
-	router.GET("/users", middleware(db, true, users))
-	GETAndPOST("/user/:id", middleware(db, true, user))
-	GETAndPOST("/workflows", middleware(db, true, workflows))
-	GETAndPOST("/workflow/:id", middleware(db, true, workflow))
+	GETAndPOST("/access/*path", middleware(db, prefix, true, access))
+	router.GET("/choose/:page/*path", middleware(db, prefix, true, choose)) // "/choose/1/" will work, "/choose/1" won't. GET("/choose/:page") would match everyhing.
+	GETAndPOST("/class/*path", middleware(db, prefix, true, setClass))
+	GETAndPOST("/create/*path", middleware(db, prefix, true, create))
+	GETAndPOST("/create-root-node", middleware(db, prefix, true, createRootNode))
+	GETAndPOST("/delete/*path", middleware(db, prefix, true, del))
+	GETAndPOST("/edit/*path", middleware(db, prefix, true, edit))
+	GETAndPOST("/groups", middleware(db, prefix, true, groups))
+	GETAndPOST("/group/:id", middleware(db, prefix, true, group))
+	router.GET("/logout", middleware(db, prefix, true, logout))
+	GETAndPOST("/move/*path", middleware(db, prefix, true, move))
+	GETAndPOST("/release/*path", middleware(db, prefix, true, release))
+	GETAndPOST("/rename/*path", middleware(db, prefix, true, rename))
+	GETAndPOST("/revoke/*path", middleware(db, prefix, true, revoke))
+	router.GET("/rules", middleware(db, prefix, true, rules))
+	router.GET("/users", middleware(db, prefix, true, users))
+	GETAndPOST("/user/:id", middleware(db, prefix, true, user))
+	GETAndPOST("/workflows", middleware(db, prefix, true, workflows))
+	GETAndPOST("/workflow/:id", middleware(db, prefix, true, workflow))
 
 	return router
 }
@@ -123,7 +125,7 @@ var backendTmpl = template.Must(template.New("backend").Parse(`
 <!DOCTYPE html>
 <html>
 	<head>
-		<base href="/backend/">
+		<base href="{{.Prefix}}">
 		<link rel="stylesheet" type="text/css" href="/assets/bootstrap-4.4.1.min.css">
 		<meta charset="utf-8">
 		<script src="/assets/taboverride-4.0.3.min.js"></script>
@@ -333,15 +335,6 @@ var backendTmpl = template.Must(template.New("backend").Parse(`
 			} else {
 				return template.HTML(fmt.Sprintf(`<a href="group/%d">%s</a>`, group.Id(), group.Name()))
 			}
-		},
-		"HrefBackend": func(segment string, e *core.Node) string {
-			return hrefBackend(segment, e)
-		},
-		"HrefBackendVersion": func(action string, e *core.Node, versionNr int) string {
-			return hrefBackendVersion(action, e, versionNr)
-		},
-		"HrefChoose": func(e *core.Node, page int) string {
-			return hrefChoose(e, page)
 		},
 		"UserLink": func(user auth.User) template.HTML {
 			return template.HTML(fmt.Sprintf(`<a href="user/%d">%s</a>`, user.Id(), user.Name()))

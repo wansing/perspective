@@ -33,7 +33,7 @@ func (t *Countdown) IdJS() template.JS {
 }
 
 func (t *Countdown) Days() template.HTML {
-	return template.HTML(fmt.Sprintf(`<span id="days-%s">%02d</span>`, t.Node.Id(), t.End.Sub(time.Now()).Hours() / 24))
+	return template.HTML(fmt.Sprintf(`<span id="days-%s">%02d</span>`, t.Node.Id(), t.End.Sub(time.Now()).Hours()/24))
 }
 
 func (t *Countdown) Hours() template.HTML {

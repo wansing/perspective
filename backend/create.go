@@ -11,7 +11,7 @@ import (
 var createTmpl = tmpl(`<h1>Create node below {{ .Selected.HrefPath }}</h1>
 
 	<p>
-		<a class="btn btn-secondary" href="{{ HrefChoose .Selected 0 }}">Cancel</a>
+		<a class="btn btn-secondary" href="choose/1{{ .Selected.HrefPath }}">Cancel</a>
 	</p>
 
 	<form method="post">
@@ -59,7 +59,7 @@ func create(w http.ResponseWriter, req *http.Request, r *Route, params httproute
 
 	if req.Method == http.MethodPost {
 		if err := r.db.AddChild(selected, req.PostFormValue("slug"), req.PostFormValue("class")); err == nil {
-			r.SeeOther(hrefChoose(selected, 0))
+			r.SeeOther("/choose/1%s", selected.HrefPath())
 			return nil
 		} else {
 			r.Danger(err)

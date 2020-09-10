@@ -118,6 +118,13 @@ func main() {
 
 	log.Printf("using database %s", dbURL.String())
 
+	// base
+
+	*base = strings.Trim(*base, "/")
+	if *base != "" {
+		*base = "/" + *base
+	}
+
 	// assemble stuff
 
 	authDB := &auth.AuthDB{}
@@ -179,13 +186,6 @@ func main() {
 			}
 		}
 		return
-	}
-
-	// base
-
-	*base = strings.Trim(*base, "/")
-	if *base != "" {
-		*base = "/" + *base
 	}
 
 	listen(db, *listenAddr, *base)
@@ -306,7 +306,11 @@ func listen(db *core.CoreDB, addr string, base string) {
 	var waitingControllers sync.WaitGroup
 
 	handleStrip(base+"/assets", http.FileServer(assets))
-	handleStrip(base+"/backend", backend.NewBackendRouter(db))
+	handleStrip(base+"/backend", backend.NewBackendRouter(db, base))
+	// issue with backend:
+	// _relative_ a-hrefs are prefixed by <base>
+	// _absolute_ http redirects are prefixed by handleStrip and prefixedResponseWriter
+	// form-actions are not prefixed by anything
 	handleStrip(base+"/static", http.FileServer(http.Dir("static")))
 	handleStrip(base+"/upload", db.Uploads)
 

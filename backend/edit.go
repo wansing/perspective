@@ -25,7 +25,7 @@ var editTmpl = tmpl(`{{ Breadcrumbs .Selected true }}
 
 		{{ with .State.ReleaseToGroup }}
 			&middot;
-			<form style="display: inline;" action="{{ HrefBackendVersion "release" $.Selected $.Selected.VersionNo }}" method="post" enctype="multipart/form-data">
+			<form style="display: inline;" action="{{ $.Prefix }}release{{ $.Selected.HrefPath }}:{{ $.Selected.VersionNo }}" method="post" enctype="multipart/form-data">
 				<button type="submit" class="btn btn-sm btn-secondary" id="release_button">Release</button>
 				<!-- might delete old versions -->
 			</form>
@@ -38,7 +38,7 @@ var editTmpl = tmpl(`{{ Breadcrumbs .Selected true }}
 
 		{{ with .State.RevokeToGroup }}
 			&middot;
-			<form style="display: inline;" action="{{ HrefBackendVersion "revoke" $.Selected $.Selected.VersionNo }}" method="post" enctype="multipart/form-data">
+			<form style="display: inline;" action="{{ $.Prefix }}revoke{{ $.Selected.HrefPath }}:{{ $.Selected.VersionNo }}" method="post" enctype="multipart/form-data">
 				<button type="submit" class="btn btn-sm btn-secondary" id="revoke_button">Revoke</button>
 				<!-- might delete old versions -->
 			</form>
@@ -52,7 +52,7 @@ var editTmpl = tmpl(`{{ Breadcrumbs .Selected true }}
 	{{ if ne .Selected.VersionNo .Selected.MaxVersionNo }}
 		<div class="alert alert-warning">
 			You are editing an old version: {{ .Selected.VersionNo }} of {{ .Selected.MaxVersionNo }}.
-			<a id="edit_latest_link" href="{{ HrefBackendVersion "edit" .Selected .Selected.MaxVersionNo }}">
+			<a id="edit_latest_link" href="edit/{{ .Selected }}{{ .Selected.MaxVersionNo }}">
 				Edit the latest version instead.
 			</a>
 		</div>
@@ -308,7 +308,7 @@ func (data *editData) VersionHistory() (template.HTML, error) {
 
 		w.WriteString(`
 			<td>
-				<a href="` + hrefBackendVersion("edit", data.Selected, version.VersionNo()) + `">Open</a>
+				<a href="edit` + data.Selected.HrefPath() + ":" + strconv.Itoa(version.VersionNo()) + `">Open</a>
 			</td>
 		`)
 
@@ -365,7 +365,7 @@ func edit(w http.ResponseWriter, req *http.Request, r *Route, params httprouter.
 		defer req.MultipartForm.RemoveAll()
 
 		if err = doEdit(r, selected, content, versionNote, r.User.Name(), workflowGroupId, deleteFiles, uploadFiles); err == nil {
-			r.SeeOther(hrefBackend("edit", selected)) // load newest version now
+			r.SeeOther("/edit%s", selected.HrefPath())
 			return nil
 		} else {
 			r.Danger(err)
@@ -412,16 +412,16 @@ func doEdit(r *Route, selected *core.Node, content, versionNote, username string
 	// edit content (versioned)
 
 	if content != selected.Content() {
-		if err := r.db.Edit(selected, content, versionNote, username); err != nil {
+		if err := r.db.Edit(selected, content, versionNote, username, workflowGroupId); err != nil {
 			return err
 		}
 	}
-
-	if workflowGroupId != selected.WorkflowGroupId() {
-		if err := r.db.SetWorkflowGroup(selected, workflowGroupId); err != nil {
-			return err
+	/*
+		if workflowGroupId != selected.WorkflowGroupId() {
+			if err := r.db.SetWorkflowGroup(selected, workflowGroupId); err != nil {
+				return err
+			}
 		}
-	}
-
+	*/
 	return nil
 }

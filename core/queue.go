@@ -67,8 +67,8 @@ func (q *Queue) Pop() (segment QueueSegment, ok bool) {
 	return
 }
 
-func (q *Queue) PopIf(segment string) bool {
-	if q.Len() > 0 && (*q)[0].Key == segment {
+func (q *Queue) PopIf(key string) bool {
+	if q.Len() > 0 && (*q)[0].Key == key {
 		q.Pop()
 		return true
 	}

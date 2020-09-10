@@ -184,7 +184,7 @@ func (t *Blog) Do(r *core.Route) error {
 
 		// Populate Children. This is not a func on Blog because we need stuff from Route for the localization.
 
-		children, err := t.Node.GetReleasedChildrenNodes(r.User, core.ChronologicallyDesc, t.perPage, (t.page-1)*t.perPage)
+		children, err := t.Node.GetReleasedChildren(r.User, core.ChronologicallyDesc, t.perPage, (t.page-1)*t.perPage)
 		if err != nil {
 			return err
 		}

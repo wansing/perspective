@@ -11,7 +11,7 @@ import (
 var setClassTmpl = tmpl(`<h1>Set class of {{ .Selected.HrefPath }}</h1>
 
 		<p>
-			<a class="btn btn-secondary" href="{{ HrefChoose .Selected 0 }}">Cancel</a>
+			<a class="btn btn-secondary" href="choose/1{{ .Selected.HrefPath }}">Cancel</a>
 		</p>
 
 		<form method="post">
@@ -56,7 +56,7 @@ func setClass(w http.ResponseWriter, req *http.Request, r *Route, params httprou
 	if req.Method == http.MethodPost {
 		newClass = req.PostFormValue("class")
 		if err = r.db.SetClass(selected, newClass); err == nil {
-			r.SeeOther(hrefChoose(selected, 0))
+			r.SeeOther("/choose/1%s", selected.HrefPath())
 			return nil
 		} else {
 			r.Danger(err)

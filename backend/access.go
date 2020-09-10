@@ -16,7 +16,7 @@ import (
 var accessTmpl = tmpl(`<h1>Access Rules of {{ .Selected.HrefPath }}</h1>
 
 	<p>
-		<a class="btn btn-secondary" href="{{ HrefChoose .Selected 0 }}">Cancel</a>
+		<a class="btn btn-secondary" href="choose/1{{ .Selected.HrefPath }}">Cancel</a>
 	</p>
 
 	<form method="post">
@@ -246,7 +246,7 @@ func access(w http.ResponseWriter, req *http.Request, r *Route, params httproute
 			}
 		}
 
-		r.SeeOther(hrefBackend("access", selected))
+		r.SeeOther("/access%s", selected.HrefPath())
 		return nil
 	}
 

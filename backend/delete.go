@@ -11,7 +11,7 @@ import (
 var deleteTmpl = tmpl(`<h1>Delete {{ .Selected.HrefPath }}</h1>
 
 	<p>
-		<a class="btn btn-secondary" href="{{ HrefChoose .Selected 0 }}">Cancel</a>
+		<a class="btn btn-secondary" href="choose/1{{ .Selected.HrefPath }}">Cancel</a>
 	</p>
 
 	<form method="post">
@@ -44,7 +44,7 @@ func del(w http.ResponseWriter, req *http.Request, r *Route, params httprouter.P
 
 	if req.PostFormValue("delete") != "" {
 		if err := r.db.DeleteNode(selected); err == nil {
-			r.SeeOther(hrefChoose(selected.Parent, 0))
+			r.SeeOther("/choose/1%s", selected.Parent.HrefPath())
 			return nil
 		} else {
 			r.Danger(err)
