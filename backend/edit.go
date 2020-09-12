@@ -52,7 +52,7 @@ var editTmpl = tmpl(`{{ Breadcrumbs .Selected true }}
 	{{ if ne .Selected.VersionNo .Selected.MaxVersionNo }}
 		<div class="alert alert-warning">
 			You are editing an old version: {{ .Selected.VersionNo }} of {{ .Selected.MaxVersionNo }}.
-			<a id="edit_latest_link" href="edit/{{ .Selected }}{{ .Selected.MaxVersionNo }}">
+			<a id="edit_latest_link" href="edit{{ .Selected.HrefPath }}:{{ .Selected.MaxVersionNo }}">
 				Edit the latest version instead.
 			</a>
 		</div>

@@ -259,13 +259,14 @@ func (db *NodeDB) GetParentAndSlug(id int) (parentId int, slug string, err error
 	return parentId, slug, db.getParentAndSlug.QueryRow(id).Scan(&parentId, &slug)
 }
 
-func (db *NodeDB) GetReleasedNodeById(id int) (core.DBNodeVersion, error) {
-	var e = &nodeVersion{}
-	if err := db.getNodeById.QueryRow(id).Scan(&e.id, &e.parentId, &e.slug, &e.className, &e.tsCreated, &e.maxVersionNo, &e.maxWGZeroVersionNo); err != nil {
-		return nil, err
+func (db *NodeDB) GetReleasedNodeById(id int) (core.DBNode, core.DBVersion, error) {
+	var n = &node{}
+	if err := db.getNodeById.QueryRow(id).Scan(&n.id, &n.parentId, &n.slug, &n.className, &n.tsCreated, &n.maxVersionNo, &n.maxWGZeroVersionNo); err != nil {
+		return nil, nil, err
 	}
+	var v = &version{}
 	// relies on correct maxWGZeroVersionNo
-	return e, db.getVersion.QueryRow(e.id, e.maxWGZeroVersionNo).Scan(&e.versionNo, &e.versionNote, &e.content, &e.tsChanged, &e.workflowGroupId)
+	return n, v, db.getVersion.QueryRow(n.id, n.maxWGZeroVersionNo).Scan(&v.versionNo, &v.versionNote, &v.content, &v.tsChanged, &v.workflowGroupId)
 }
 
 func (db *NodeDB) GetVersion(n core.DBNode, versionNo int) (core.DBVersion, error) {

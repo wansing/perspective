@@ -27,11 +27,11 @@ func (n *Node) RecentChildrenByTag(user auth.User, now int64, tag string, limit,
 	}
 	var result = make([]*Node, 0, len(nodeIds))
 	for _, nodeId := range nodeIds {
-		dbNode, err := n.db.GetReleasedNodeById(nodeId)
+		dbNode, dbVersion, err := n.db.GetReleasedNodeById(nodeId)
 		if err != nil {
 			return nil, err
 		}
-		node, err := n.db.NewNode(n, dbNode)
+		node, err := n.db.NewNode(n, dbNode, dbVersion)
 		if err != nil {
 			return nil, err
 		}
@@ -50,7 +50,7 @@ func (n *Node) UpcomingChildrenByTag(now int64, tag string, limit, offset int) (
 	}
 	var nodes = make([]DBNode, len(nodeIds))
 	for i, nodeId := range nodeIds {
-		nodes[i], err = n.db.GetReleasedNodeById(nodeId)
+		nodes[i], _, err = n.db.GetReleasedNodeById(nodeId) // TODO GetReleasedNodeById should return DBNode only
 		if err != nil {
 			return nil, err
 		}

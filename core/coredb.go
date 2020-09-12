@@ -107,47 +107,44 @@ func (c *CoreDB) GetAllWorkflowAssignments() (map[int]map[bool]*auth.Workflow, e
 }
 
 func (c *CoreDB) GetLatestNode(parent *Node, slug string) (*Node, error) {
-	dbn, err := c.NodeDB.GetNode(parent.Id(), slug)
+	dbNode, err := c.NodeDB.GetNode(parent.Id(), slug)
 	if err != nil {
 		return nil, err
 	}
-	n, err := c.NewNode(parent, dbn)
+	dbVersion, err := c.NodeDB.GetVersion(dbNode, dbNode.MaxVersionNo())
 	if err != nil {
-		return nil, err
+		if c.NodeDB.IsNotFound(err) {
+			// let NoVersion be okay here because neither a specific nor a released version is requested
+			dbVersion = NoVersion{}
+		} else {
+			return nil, err
+		}
 	}
-	n.DBVersion, err = c.NodeDB.GetVersion(n, n.MaxVersionNo())
-	if err != nil && c.NodeDB.IsNotFound(err) {
-		// let NoVersion be okay here because neither a specific nor a released version is requested
-		n.DBVersion = NoVersion{}
-		err = nil
-	}
-	return n, err
+	return c.NewNode(parent, dbNode, dbVersion)
 }
 
 func (c *CoreDB) GetReleasedNode(parent *Node, slug string) (*Node, error) {
-	dbn, err := c.NodeDB.GetNode(parent.Id(), slug)
+	dbNode, err := c.NodeDB.GetNode(parent.Id(), slug)
 	if err != nil {
 		return nil, err
 	}
-	n, err := c.NewNode(parent, dbn)
+	dbVersion, err := c.NodeDB.GetVersion(dbNode, dbNode.MaxWGZeroVersionNo())
 	if err != nil {
 		return nil, err
 	}
-	n.DBVersion, err = c.NodeDB.GetVersion(n, n.MaxWGZeroVersionNo())
-	return n, err
+	return c.NewNode(parent, dbNode, dbVersion)
 }
 
 func (c *CoreDB) GetVersionNode(parent *Node, slug string, versionNo int) (*Node, error) {
-	dbn, err := c.NodeDB.GetNode(parent.Id(), slug)
+	dbNode, err := c.NodeDB.GetNode(parent.Id(), slug)
 	if err != nil {
 		return nil, err
 	}
-	n, err := c.NewNode(parent, dbn)
+	dbVersion, err := c.NodeDB.GetVersion(dbNode, versionNo)
 	if err != nil {
 		return nil, err
 	}
-	n.DBVersion, err = c.NodeDB.GetVersion(n, versionNo)
-	return n, err
+	return c.NewNode(parent, dbNode, dbVersion)
 }
 
 // InternalUrlByNodeId determines the internal path of the node with the given id.

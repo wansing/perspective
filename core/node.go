@@ -54,7 +54,7 @@ type NodeDB interface {
 	GetNode(parentId int, slug string) (DBNode, error)
 	GetParentAndSlug(id int) (parentId int, slug string, err error)
 	GetReleasedChildren(n DBNode, order Order, limit, offset int) ([]DBNodeVersion, error)
-	GetReleasedNodeById(id int) (DBNodeVersion, error) // latest released version or error
+	GetReleasedNodeById(id int) (DBNode, DBVersion, error) // latest released version or error
 	GetVersion(parent DBNode, versionNo int) (DBVersion, error)
 	InsertNode(parentId int, slug string, class string) error
 	IsNotFound(err error) bool
@@ -106,11 +106,12 @@ type Node struct {
 }
 
 // NewNode creates a Node. You must set Prev and Next on your own.
-func (c *CoreDB) NewNode(parent *Node, dbNode DBNode) (*Node, error) {
+func (c *CoreDB) NewNode(parent *Node, dbNode DBNode, dbVersion DBVersion) (*Node, error) {
 
 	var n = &Node{}
 	n.db = c
 	n.DBNode = dbNode
+	n.DBVersion = dbVersion
 	n.localVars = make(map[string]string)
 	n.Parent = parent
 
@@ -160,7 +161,7 @@ func (n *Node) GetChildren(user auth.User, order Order, limit, offset int) ([]DB
 	}
 	var result = make([]DBNode, 0, len(children))
 	for _, c := range children {
-		node, err := n.db.NewNode(n, c)
+		node, err := n.db.NewNode(n, c, &NoVersion{})
 		if err != nil {
 			return nil, err
 		}
@@ -179,7 +180,7 @@ func (n *Node) GetReleasedChildren(user auth.User, order Order, limit, offset in
 	}
 	var result = make([]*Node, 0, len(children))
 	for _, c := range children {
-		node, err := n.db.NewNode(n, c)
+		node, err := n.db.NewNode(n, c, c) // TODO ok? c is DBNodeVersion
 		if err != nil {
 			return nil, err
 		}
