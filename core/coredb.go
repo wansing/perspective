@@ -116,6 +116,11 @@ func (c *CoreDB) GetLatestNode(parent *Node, slug string) (*Node, error) {
 		return nil, err
 	}
 	n.DBVersion, err = c.NodeDB.GetVersion(n, n.MaxVersionNo())
+	if err != nil && c.NodeDB.IsNotFound(err) {
+		// let NoVersion be okay here because neither a specific nor a released version is requested
+		n.DBVersion = NoVersion{}
+		err = nil
+	}
 	return n, err
 }
 

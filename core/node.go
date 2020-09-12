@@ -65,6 +65,28 @@ type NodeDB interface {
 	Versions(n DBNode) ([]DBVersionStub, error)
 }
 
+type NoVersion struct{}
+
+func (NoVersion) Content() string {
+	return ""
+}
+
+func (NoVersion) TsChanged() int64 {
+	return 0
+}
+
+func (NoVersion) VersionNo() int {
+	return 0
+}
+
+func (NoVersion) VersionNote() string {
+	return ""
+}
+
+func (NoVersion) WorkflowGroupId() int {
+	return 0
+}
+
 type Node struct {
 	DBNode
 	DBVersion
