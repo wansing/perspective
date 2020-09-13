@@ -26,7 +26,7 @@ func NormalizeSlug(slug string) string {
 }
 
 // recursive
-func (n *Node) whereami(external bool, versionFunc func(*Node) int) []string {
+func (n *Node) whereami(external bool, versionNo ...int) []string {
 
 	if n == nil {
 		return []string{}
@@ -34,7 +34,7 @@ func (n *Node) whereami(external bool, versionFunc func(*Node) int) []string {
 
 	// recurse
 
-	var where = n.Parent.whereami(external, versionFunc)
+	var where = n.Parent.whereami(external, versionNo...)
 
 	// URL segment
 
@@ -46,9 +46,9 @@ func (n *Node) whereami(external bool, versionFunc func(*Node) int) []string {
 			segment = ""
 		}
 
-		if versionFunc != nil {
-			if versionNo := versionFunc(n); versionNo != 0 {
-				segment = fmt.Sprintf("%s:%d", segment, versionNo)
+		for i := 0; i < len(versionNo)-1; i = i+2 {
+			if versionNo[i] == n.Id() {
+				segment = fmt.Sprintf("%s:%d", segment, versionNo[i+1])
 			}
 		}
 
@@ -69,13 +69,11 @@ func (n *Node) whereami(external bool, versionFunc func(*Node) int) []string {
 //
 // Usually params are omitted and pushed slugs are included.
 // Pass external = true to invert this behavior.
-//
-// If a versionFunc is supplied, it is called to include version information.
-func (n *Node) Href(external bool, versionFunc func(*Node) int) string {
+func (n *Node) Href(external bool, versionNo ...int) string {
 
 	var href string
 
-	if segments := n.whereami(external, versionFunc); len(segments) > 0 {
+	if segments := n.whereami(external, versionNo...); len(segments) > 0 {
 		href += "/" + strings.Join(segments, "/")
 	}
 
@@ -86,23 +84,12 @@ func (n *Node) Href(external bool, versionFunc func(*Node) int) string {
 	return href
 }
 
-// href for visitors viewing the site
-var preferVersionNo = func(n *Node) int {
-	if n.VersionNo() != n.MaxWGZeroVersionNo() {
-		return n.VersionNo()
-	}
-	return 0
+func (n *Node) HrefPath(versionNo ...int) string {
+	return n.Href(false, versionNo...)
 }
 
-// HrefView calls Href with a versionFunc that appends a version number
-// if and only if it differs from the MaxWGZeroVersionNo.
-func (n *Node) HrefView() string {
-	return n.Href(true, preferVersionNo)
-}
-
-// HrefPath calls Href with default values. Its result represents the database structure.
-func (n *Node) HrefPath() string {
-	return n.Href(false, nil)
+func (n *Node) HrefView(versionNo ...int) string {
+	return n.Href(true, versionNo...)
 }
 
 // If p is relative, MakeAbsolute prepends the HrefPath of the receiver.

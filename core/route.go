@@ -20,15 +20,14 @@ type routeContextKey struct{}
 
 var ErrNotFound = errors.New("not found")
 
-// A route processes one queue, which can be the main queue or an included queue.
-//
-// The route is passed to the content template.
+// A Route executes one queue, which can be the main queue or an included queue.
 //
 // For usage in templates, funcs on Route must return "one return value (of any type) or two return values, the second of which is an error."
 type Route struct {
 	*Queue
 	*Request
-	*Node                      // current node, used by template funcs only
+	*Node                      // current, it's easier for template execution to have it all in one place
+	DBVersion                  // current, it's easier for template execution to have it all in one place
 	Vars     map[string]string // results of template execution
 	VarDepth map[string]int    // must be stored for each var separately
 }
@@ -36,6 +35,10 @@ type Route struct {
 // RouteFromContext gets a Route from the given context. It can panic.
 func RouteFromContext(ctx context.Context) *Route {
 	return ctx.Value(routeContextKey{}).(*Route)
+}
+
+func (r *Route) SetContent(content string) {
+	r.DBVersion = VersionWrapContent{r.DBVersion, content}
 }
 
 // T returns the instance of the current node.
@@ -140,7 +143,7 @@ func (r *Route) pop(parent, prev *Node) error {
 	}
 
 	if prev != nil && prev.Next != nil {
-		// Recurse has already been called
+		// pop has already been called
 		return nil
 	}
 
@@ -150,7 +153,7 @@ func (r *Route) pop(parent, prev *Node) error {
 
 	// get node
 
-	var parentId = 0 // default parent id is always zero, because Node.Parent refers to the tree hierarchy
+	var parentId = 0 // default parent id is always zero because Node.Parent refers to the tree hierarchy
 	if parent != nil {
 		parentId = parent.Id()
 	}
@@ -159,16 +162,9 @@ func (r *Route) pop(parent, prev *Node) error {
 	var versionNo = (*r.Queue)[0].Version
 	(*r.Queue) = (*r.Queue)[1:]
 
-	var err error
-	var n *Node
-
-	if versionNo == DefaultVersion {
-		n, err = r.Request.db.GetReleasedNode(parent, slug)
-	} else {
-		n, err = r.Request.db.GetVersionNode(parent, slug, versionNo)
-	}
+	n, err := r.Request.db.GetNodeBySlug(parent, slug)
 	if err != nil {
-		return fmt.Errorf("recurse (%d, %s): %w", parentId, slug, err) // %w wraps err
+		return fmt.Errorf("pop (%d, %s): %w", parentId, slug, err) // %w wraps err
 	}
 
 	n.Parent = parent
@@ -178,15 +174,34 @@ func (r *Route) pop(parent, prev *Node) error {
 		prev.Next = n
 	}
 
-	if err := n.RequirePermission(Read, r.User); err != nil {
+	// check permission
+
+	if err := r.User.RequirePermission(Read, n); err != nil {
 		return err
 	}
 
-	defer func(old *Node) {
-		r.Node = old
-	}(r.Node) // r.Node can be nil
+	// get version
 
-	r.Node = n // for template execution
+	if versionNo == DefaultVersion {
+		versionNo = n.MaxWGZeroVersionNo()
+	}
+
+	v, err := n.GetVersion(versionNo)
+	if err != nil {
+		return err
+	}
+
+	// backup and store things in Route
+
+	defer func(oldNode *Node, oldVersion DBVersion) {
+		r.Node = oldNode
+		r.DBVersion = oldVersion
+	}(r.Node, r.DBVersion)
+
+	r.Node = n
+	r.DBVersion = v
+
+	// run class code
 
 	if err := n.Do(r); err != nil {
 		return err

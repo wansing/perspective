@@ -22,6 +22,8 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/wansing/perspective/auth"
 	"github.com/wansing/perspective/backend"
+	//"github.com/wansing/perspective/cache/gcachekbc"
+	//"github.com/wansing/perspective/cache/maps"
 	"github.com/wansing/perspective/classes"
 	"github.com/wansing/perspective/core"
 	"github.com/wansing/perspective/sqldb"
@@ -139,7 +141,7 @@ func main() {
 	case "sqlite3":
 		sessionStore = sqlite3.NewSessionStore(sqlDB)
 	default:
-		log.Println("unknown database backend: %s", dbURL.Driver)
+		log.Printf("unknown database backend: %s", dbURL.Driver)
 		return
 	}
 
@@ -153,6 +155,9 @@ func main() {
 	db.AccessDB = sqldb.NewAccessDB(sqlDB)
 	db.ClassRegistry = classes.DefaultRegistry
 	db.EditorsDB = sqldb.NewEditorsDB(sqlDB)
+	/*db.NodeDB = maps.NewNodeCache(
+		sqldb.NewNodeDB(sqlDB),
+	)*/
 	db.NodeDB = sqldb.NewNodeDB(sqlDB)
 	db.IndexDB = sqldb.NewIndexDB(sqlDB)
 
@@ -307,9 +312,9 @@ func listen(db *core.CoreDB, addr string, base string) {
 
 	handleStrip(base+"/assets", http.FileServer(assets))
 	handleStrip(base+"/backend", backend.NewBackendRouter(db, base))
-	// issue with backend:
-	// _relative_ a-hrefs are prefixed by <base>
-	// _absolute_ http redirects are prefixed by handleStrip and prefixedResponseWriter
+	// backend challenge:
+	// relative a-hrefs are prefixed through <base>
+	// absolute http redirects are prefixed through handleStrip and prefixedResponseWriter
 	// form-actions are not prefixed by anything
 	handleStrip(base+"/static", http.FileServer(http.Dir("static")))
 	handleStrip(base+"/upload", db.Uploads)

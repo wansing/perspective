@@ -139,7 +139,7 @@ func access(w http.ResponseWriter, req *http.Request, r *Route, params httproute
 		return err
 	}
 
-	err = selected.RequirePermission(core.Admin, r.User)
+	err = r.User.RequirePermission(core.Admin, selected)
 	if err != nil {
 		return err
 	}
@@ -196,7 +196,7 @@ func access(w http.ResponseWriter, req *http.Request, r *Route, params httproute
 
 		// anti-lockout
 
-		myAdminRules, err := selected.RequirePermissionRules(core.Admin, r.User)
+		myAdminRules, err := r.User.RequirePermissionRules(core.Admin, selected)
 		if err != nil {
 			return err
 		}

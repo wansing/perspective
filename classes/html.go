@@ -40,11 +40,11 @@ type HTML struct {
 // Now instead, HTML rewriting must take care not to modify template instructions.
 func (t *HTML) Do(r *core.Route) error {
 
-	rewritten, err := rewriteHTML(t.Node, strings.NewReader(t.Node.Content()))
+	rewritten, err := rewriteHTML(r.Node, strings.NewReader(r.Content()))
 	if err != nil {
 		return err
 	}
-	t.Node.SetContent(rewritten)
+	r.SetContent(rewritten)
 
 	return t.Raw.Do(r)
 }

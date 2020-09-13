@@ -84,6 +84,16 @@ func (c *CoreDB) RemoveAccessRule(e *Node, groupId int) error {
 	return c.AccessDB.RemoveAccessRule(e.Id(), groupId)
 }
 
+// Edit adds a version to the receiver node.
+func (c *CoreDB) Edit(n *Node, v DBVersion, newContent, newVersionNote, username string, workflowGroupId int) error {
+	if v.Content() != newContent {
+		if err := c.AddVersion(n.DBNode, newContent, fmt.Sprintf("[%s] %s", username, strings.TrimSpace(newVersionNote)), workflowGroupId); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // GetAllWorkflowAssignments shadows CoreDB.EditorsDB.GetAllWorkflowAssignments.
 func (c *CoreDB) GetAllWorkflowAssignments() (map[int]map[bool]*auth.Workflow, error) {
 	var base, err = c.EditorsDB.GetAllWorkflowAssignments()
@@ -106,45 +116,12 @@ func (c *CoreDB) GetAllWorkflowAssignments() (map[int]map[bool]*auth.Workflow, e
 	return all, nil
 }
 
-func (c *CoreDB) GetLatestNode(parent *Node, slug string) (*Node, error) {
-	dbNode, err := c.NodeDB.GetNode(parent.Id(), slug)
+func (c *CoreDB) GetNodeBySlug(parent *Node, slug string) (*Node, error) {
+	dbNode, err := c.NodeDB.GetNodeBySlug(parent.Id(), slug)
 	if err != nil {
 		return nil, err
 	}
-	dbVersion, err := c.NodeDB.GetVersion(dbNode, dbNode.MaxVersionNo())
-	if err != nil {
-		if c.NodeDB.IsNotFound(err) {
-			// let NoVersion be okay here because neither a specific nor a released version is requested
-			dbVersion = NoVersion{}
-		} else {
-			return nil, err
-		}
-	}
-	return c.NewNode(parent, dbNode, dbVersion)
-}
-
-func (c *CoreDB) GetReleasedNode(parent *Node, slug string) (*Node, error) {
-	dbNode, err := c.NodeDB.GetNode(parent.Id(), slug)
-	if err != nil {
-		return nil, err
-	}
-	dbVersion, err := c.NodeDB.GetVersion(dbNode, dbNode.MaxWGZeroVersionNo())
-	if err != nil {
-		return nil, err
-	}
-	return c.NewNode(parent, dbNode, dbVersion)
-}
-
-func (c *CoreDB) GetVersionNode(parent *Node, slug string, versionNo int) (*Node, error) {
-	dbNode, err := c.NodeDB.GetNode(parent.Id(), slug)
-	if err != nil {
-		return nil, err
-	}
-	dbVersion, err := c.NodeDB.GetVersion(dbNode, versionNo)
-	if err != nil {
-		return nil, err
-	}
-	return c.NewNode(parent, dbNode, dbVersion)
+	return c.NewNode(parent, dbNode), nil
 }
 
 // InternalUrlByNodeId determines the internal path of the node with the given id.
@@ -161,12 +138,12 @@ func (c *CoreDB) internalPathByNodeId(id int, maxDepth int) (string, error) {
 		if id == 1 { // root
 			break
 		}
-		parentId, slug, err := c.GetParentAndSlug(id)
+		n, err := c.GetNodeById(id)
 		if err != nil {
 			return "", err
 		}
-		slugs = append([]string{slug}, slugs...)
-		id = parentId
+		slugs = append([]string{n.Slug()}, slugs...)
+		id = n.ParentId()
 	}
 
 	return "/" + strings.Join(slugs, "/"), nil
@@ -219,9 +196,8 @@ func (c *CoreDB) requirePermissionById(required Permission, nodeId int, u auth.U
 	return ErrUnauthorized
 }
 
-// Open prefers the latest version and does not execute anything.
-// Does not return DBNode because DBNode has no Parent and Next.
-func (c *CoreDB) Open(user auth.User, parent *Node, queue *Queue) (*Node, error) {
+// Open ignores version information in queue.
+func (c *CoreDB) Open(user *User, parent *Node, queue *Queue) (*Node, error) {
 
 	if queue.Len() > 16 {
 		return nil, errors.New("queue too deep")
@@ -237,27 +213,123 @@ func (c *CoreDB) Open(user auth.User, parent *Node, queue *Queue) (*Node, error)
 		return nil, nil // queue is empty
 	}
 
-	var err error
-	var node *Node
-
-	if segment.Version == DefaultVersion {
-		node, err = c.GetLatestNode(parent, segment.Key)
-	} else {
-		node, err = c.GetVersionNode(parent, segment.Key, segment.Version)
-	}
+	n, err := c.GetNodeBySlug(parent, segment.Key)
 	if err != nil {
 		return nil, fmt.Errorf("open (%d, %s): %w", parentId, segment.Key, err) // %w wraps err
 	}
 
-	node.Prev = parent
+	if err := user.RequirePermission(Read, n); err != nil {
+		return nil, fmt.Errorf("open (%d, %s): %w", parentId, segment.Key, err)
+	}
 
-	if err := node.RequirePermission(Read, user); err != nil {
+	n.Prev = parent
+
+	if n.Next, err = c.Open(user, n, queue); err != nil {
 		return nil, err
 	}
 
-	if node.Next, err = c.Open(user, node, queue); err != nil {
-		return nil, err
+	return n, nil
+}
+
+
+// SetClass shadows CoreDB.NodeDB.SetClass.
+func (c *CoreDB) SetClass(n *Node, className string) error {
+	className = strings.TrimSpace(className)
+	if className == "" {
+		return errors.New("class can't be empty")
+	}
+	if _, ok := c.ClassRegistry.Get(className); !ok {
+		return fmt.Errorf("class %s not found", className)
+	}
+	return c.NodeDB.SetClass(n.DBNode, className)
+}
+
+// SetParent shadows CoreDB.NodeDB.SetParent.
+func (c *CoreDB) SetParent(n *Node, newParent *Node) error {
+
+	if n.Parent == nil {
+		return errors.New("can't move root node")
 	}
 
-	return node, nil
+	// newParent can't be below this
+	for newAncestor := newParent; newAncestor != nil; newAncestor = newAncestor.Parent {
+		if newAncestor.Id() == n.Id() {
+			return errors.New("can't move node below itself")
+		}
+	}
+
+	// skip if new parent is current parent
+	if newParent.Id() == n.Parent.Id() {
+		return nil
+	}
+
+	if err := c.NodeDB.SetParent(n, newParent); err != nil {
+		return err
+	}
+
+	n.Parent = newParent
+	return nil
+}
+
+// SetSlug shadows CoreDB.NodeDB.SetSlug.
+// It does not care for duplicated slugs, the database must prevent them.
+func (c *CoreDB) SetSlug(n *Node, slug string) error {
+	slug = NormalizeSlug(slug)
+	if slug == "" {
+		return errors.New("slug can't be empty")
+	}
+	return c.NodeDB.SetSlug(n, slug)
+}
+
+// SetWorkflowGroup shadows CoreDB.NodeDB.SetWorkflowGroup.
+func (c *CoreDB) SetWorkflowGroup(n *Node, v DBVersion, newWorkflowGroup int) error {
+
+	if v.WorkflowGroupId() == newWorkflowGroup {
+		return nil
+	}
+
+	var oldMaxWGZeroVersionNo = n.MaxWGZeroVersionNo()
+
+	if err := c.NodeDB.SetWorkflowGroup(n, v, newWorkflowGroup); err != nil {
+		return err
+	}
+
+	if oldMaxWGZeroVersionNo != n.MaxWGZeroVersionNo() { // if maxWGZeroVersionNo has changed
+
+		v, err := c.GetVersion(n.Id(), n.MaxWGZeroVersionNo())
+		if err != nil {
+			return err
+		}
+
+		var tmpRoute = &Route{
+			Request:   newDummyRequest(),
+			Queue:     NewQueue(""),
+			Node:      n,
+			DBVersion: v,
+		}
+
+		if err := n.Do(tmpRoute); err != nil {
+			return err
+		}
+
+		if err := n.SetTags(n.Tags); err != nil {
+			return err
+		}
+
+		if err := n.SetTimestamps(n.Timestamps); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// AssignWorkflow shadows CoreDB.EditorsDB.AssignWorkflow.
+func (c *CoreDB) AssignWorkflow(n *Node, childrenOnly bool, workflowId int) error {
+	return c.EditorsDB.AssignWorkflowId(n.Id(), childrenOnly, workflowId)
+}
+
+// UnassignWorkflow shadows CoreDB.EditorsDB.UnassignWorkflow.
+func (c *CoreDB) UnassignWorkflow(n *Node, childrenOnly bool) error {
+	return c.EditorsDB.UnassignWorkflow(n.Id(), childrenOnly)
 }

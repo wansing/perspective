@@ -24,28 +24,29 @@ func init() {
 }
 
 type Countdown struct {
-	Raw // required for template execution
-	End time.Time
+	Raw    // for template execution
+	End    time.Time
+	NodeId int
 }
 
 func (t *Countdown) IdJS() template.JS {
-	return template.JS(t.Node.Id())
+	return template.JS(t.NodeId)
 }
 
 func (t *Countdown) Days() template.HTML {
-	return template.HTML(fmt.Sprintf(`<span id="days-%s">%02d</span>`, t.Node.Id(), t.End.Sub(time.Now()).Hours()/24))
+	return template.HTML(fmt.Sprintf(`<span id="days-%s">%02d</span>`, t.NodeId, t.End.Sub(time.Now()).Hours()/24))
 }
 
 func (t *Countdown) Hours() template.HTML {
-	return template.HTML(fmt.Sprintf(`<span id="hours-%s">%02d</span>`, t.Node.Id(), t.End.Sub(time.Now()).Hours()))
+	return template.HTML(fmt.Sprintf(`<span id="hours-%s">%02d</span>`, t.NodeId, t.End.Sub(time.Now()).Hours()))
 }
 
 func (t *Countdown) Minutes() template.HTML {
-	return template.HTML(fmt.Sprintf(`<span id="minutes-%s">%02d</span>`, t.Node.Id(), t.End.Sub(time.Now()).Minutes()))
+	return template.HTML(fmt.Sprintf(`<span id="minutes-%s">%02d</span>`, t.NodeId, t.End.Sub(time.Now()).Minutes()))
 }
 
 func (t *Countdown) Seconds() template.HTML {
-	return template.HTML(fmt.Sprintf(`<span id="seconds-%s">%02d</span>`, t.Node.Id(), t.End.Sub(time.Now()).Seconds()))
+	return template.HTML(fmt.Sprintf(`<span id="seconds-%s">%02d</span>`, t.NodeId, t.End.Sub(time.Now()).Seconds()))
 }
 
 func (t *Countdown) SetEnd(end string) (err error) {
@@ -55,7 +56,9 @@ func (t *Countdown) SetEnd(end string) (err error) {
 
 func (t *Countdown) Do(r *core.Route) error {
 
-	t.Node.SetContent(
+	t.NodeId = r.Node.Id()
+
+	r.SetContent(
 		`{{define "head"}}
 			{{.Get "head"}}
 
@@ -85,22 +88,22 @@ func (t *Countdown) Do(r *core.Route) error {
 					var minutes = Math.floor(diff / 60);
 					var seconds = diff % 60;
 
-					elementDays = document.getElementById("days-{{.T.Node.Id}}");
+					elementDays = document.getElementById("days-{{.Node.Id}}");
 					if(elementDays) {
 						elementDays.innerHTML = days;
 					}
 
-					elementHours = document.getElementById("hours-{{.T.Node.Id}}");
+					elementHours = document.getElementById("hours-{{.Node.Id}}");
 					if(elementHours) {
 						elementHours.innerHTML = pad(hours);
 					}
 
-					elementMinutes = document.getElementById("minutes-{{.T.Node.Id}}");
+					elementMinutes = document.getElementById("minutes-{{.Node.Id}}");
 					if(elementMinutes) {
 						elementMinutes.innerHTML = pad(minutes);
 					}
 
-					elementSeconds = document.getElementById("seconds-{{.T.Node.Id}}");
+					elementSeconds = document.getElementById("seconds-{{.Node.Id}}");
 					if(elementSeconds) {
 						elementSeconds.innerHTML = pad(seconds);
 					}
@@ -111,7 +114,7 @@ func (t *Countdown) Do(r *core.Route) error {
 				countdown{{.T.IdJS}}();
 
 			</script>
-		{{end}}` + t.Node.Content())
+		{{end}}` + r.Content())
 
 	return t.Raw.Do(r)
 }

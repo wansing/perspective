@@ -20,24 +20,26 @@ func init() {
 
 type Carousel struct {
 	core.Base
-}
-
-func (t *Carousel) CarouselId() string {
-	return "carousel-" + strconv.Itoa(t.Id())
-}
-
-func (t *Carousel) Files() ([]os.FileInfo, error) {
-	return t.Folder().Files()
+	CarouselId string
+	Files      []os.FileInfo
 }
 
 func (t *Carousel) Do(r *core.Route) error {
+
+	t.CarouselId = "carousel-" + strconv.Itoa(r.Node.Id())
+
+	var err error
+	t.Files, err = r.Node.Folder().Files()
+	if err != nil {
+		return err
+	}
 
 	r.SetGlobal("include-bootstrap-4-css", "true")
 	r.SetGlobal("include-bootstrap-4-js", "true")
 	r.SetGlobal("include-jquery-3", "true")
 
 	// ignore existing content
-	t.Node.SetContent(
+	r.SetContent(
 		`<div id="{{ .T.CarouselId }}" class="carousel slide" data-ride="carousel">
 			<ol class="carousel-indicators">
 				{{ range $index, $file := .T.Files }}
@@ -46,7 +48,7 @@ func (t *Carousel) Do(r *core.Route) error {
 			</ol>
 			<div class="carousel-inner">
 				{{ range $index, $file := .T.Files }}
-					<div class="carousel-item{{ if eq $index 0 }} active{{ end }}"><img class="d-block w-100" src="/upload/{{ $.T.Node.Id }}/{{ $file.Name }}"></div>
+					<div class="carousel-item{{ if eq $index 0 }} active{{ end }}"><img class="d-block w-100" src="/upload/{{ $.Node.Id }}/{{ $file.Name }}"></div>
 				{{ end }}
 			</div>
 			<a class="carousel-control-prev" href="#{{ .T.CarouselId }}" role="button" data-slide="prev">

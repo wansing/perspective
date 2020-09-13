@@ -39,7 +39,7 @@ func init() {
 			</div>
 		{{end}}
 
-		{{if .T.Node.Next}}
+		{{if .Node.Next}}
 			{{template "metadata" .T.Next}}
 			{{.Get "body"}}
 			<div class="blog-blogentry-back">
@@ -81,28 +81,16 @@ func init() {
 	})
 }
 
-/*
-	// This cat-include approach is not feasible because:
-	// * it can't crop the blog entry at <!-- more -->
-	// * HrefView() omits the slug of the entry because it thinks that it has been included literally
-
-	childBranch := newBranch()
-	childBranch.root = child.GetLeaf()
-	im.includes[child.slug] = make(map[string]*Branch)
-	im.includes[child.slug][""] = childBranch
-
-	im.ascVars.AddString("body", false, `<a href="` + child.HrefView() + `/` + child.slug + `"><cat-include>` + child.slug + `</cat-include></a>`)
-*/
-
 type Blog struct {
 	core.Base
-	Children []*blogChild
-	Next     blogNode
-	page     int // starting with 1
-	pages    int
-	perPage  int
-	ReadMore string
-	tmpl     *template.Template
+	Children  []*blogChild
+	Next      blogNode
+	page      int // starting with 1
+	PageLinks []template.HTML
+	pages     int
+	perPage   int
+	ReadMore  string
+	tmpl      *template.Template
 }
 
 // Node plus Request, so we can localize or internationalize things
@@ -145,7 +133,7 @@ func (t *Blog) Do(r *core.Route) error {
 
 	// parse content as ini
 
-	var cfg, err = ini.Load([]byte(r.Node.Content()))
+	var cfg, err = ini.Load([]byte(r.Content()))
 	if err != nil {
 		return err
 	}
@@ -156,7 +144,7 @@ func (t *Blog) Do(r *core.Route) error {
 		t.perPage = 10
 	}
 
-	if childrenCount, err := t.Node.CountReleasedChildren(0); err == nil {
+	if childrenCount, err := r.Node.CountReleasedChildren(); err == nil {
 		t.pages = int(math.Ceil(float64(childrenCount) / float64(t.perPage)))
 	} else {
 		t.pages = 1
@@ -184,7 +172,7 @@ func (t *Blog) Do(r *core.Route) error {
 
 		// Populate Children. This is not a func on Blog because we need stuff from Route for the localization.
 
-		children, err := t.Node.GetReleasedChildren(r.User, core.ChronologicallyDesc, t.perPage, (t.page-1)*t.perPage)
+		children, err := r.Node.GetReleasedChildren(r.User, core.ChronologicallyDesc, t.perPage, (t.page-1)*t.perPage)
 		if err != nil {
 			return err
 		}
@@ -226,6 +214,17 @@ func (t *Blog) Do(r *core.Route) error {
 		}
 	}
 
+	t.PageLinks = util.PageLinks(
+		t.page,
+		t.pages,
+		func(page int, name string) string {
+			return `<a href="` + r.Node.HrefView() + `/page/` + strconv.Itoa(page) + `">` + name + `</a>`
+		},
+		func(page int, name string) string {
+			return `<span>` + strconv.Itoa(page) + `</span>`
+		},
+	)
+
 	buf := &bytes.Buffer{}
 	if err := t.tmpl.Execute(buf, r); err != nil {
 		return err
@@ -233,17 +232,4 @@ func (t *Blog) Do(r *core.Route) error {
 	r.Set("body", buf.String())
 
 	return nil
-}
-
-func (t *Blog) PageLinks() []template.HTML {
-	return util.PageLinks(
-		t.page,
-		t.pages,
-		func(page int, name string) string {
-			return `<a href="` + t.Node.HrefView() + `/page/` + strconv.Itoa(page) + `">` + name + `</a>`
-		},
-		func(page int, name string) string {
-			return `<span>` + strconv.Itoa(page) + `</span>`
-		},
-	)
 }

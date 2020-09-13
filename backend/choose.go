@@ -38,7 +38,7 @@ var chooseTmpl = tmpl(`{{ Breadcrumbs .Selected false }}
 				</tr>
 				<tr class="table-light">
 					<td colspan="4" style="border-top: 0; text-align: center;">
-						<a class="btn btn-sm btn-primary" href="edit{{ .Selected.HrefPath }}">Edit</a>
+						<a class="btn btn-sm btn-primary" href="edit/0{{ .Selected.HrefPath }}">Edit</a>
 						<a class="btn btn-sm btn-primary" href="class{{ .Selected.HrefPath }}">Set class</a>
 						{{ if CanCreate .User .Selected }}
 							<a class="btn btn-sm btn-primary" href="create{{ .Selected.HrefPath }}">Create</a>
@@ -54,11 +54,9 @@ var chooseTmpl = tmpl(`{{ Breadcrumbs .Selected false }}
 					</td>
 				</tr>
 
-				{{ if .Children }}
-					<tr>
-						<th colspan="4">Children</th>
-					</tr>
-				{{ end }}
+				<tr>
+					<th colspan="4">Children</th>
+				</tr>
 
 				{{ range .Children }}
 					<tr>
@@ -69,6 +67,10 @@ var chooseTmpl = tmpl(`{{ Breadcrumbs .Selected false }}
 						<td>{{ .ClassName }}</td>
 						<td>{{ .Id }}</td>
 					</tr>
+				{{ else }}
+					<tr>
+						<td colspan="4">none</td>
+					<tr>
 				{{ end }}
 			</tbody>
 		</table>
@@ -87,7 +89,7 @@ type chooseData struct {
 	Selected *core.Node
 }
 
-func (data *chooseData) Children() ([]core.DBNode, error) {
+func (data *chooseData) Children() ([]*core.Node, error) {
 	return data.Selected.GetChildren(data.Route.Route.Request.User, data.Selected.Class.SelectOrder, SelectPerPage, (data.page-1)*SelectPerPage)
 }
 
@@ -131,7 +133,7 @@ func choose(w http.ResponseWriter, req *http.Request, r *Route, params httproute
 		page = 1
 	}
 
-	path := params.ByName("path")
+	var path = params.ByName("path")
 	selected, err := r.Open(path)
 	if err != nil {
 		if r.db.IsNotFound(err) && path == "/" && r.IsRootAdmin() {
@@ -142,7 +144,7 @@ func choose(w http.ResponseWriter, req *http.Request, r *Route, params httproute
 		}
 	}
 
-	if err := selected.RequirePermission(core.Read, r.User); err != nil {
+	if err := r.User.RequirePermission(core.Read, selected); err != nil {
 		return err
 	}
 

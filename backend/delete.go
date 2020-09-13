@@ -36,7 +36,7 @@ func del(w http.ResponseWriter, req *http.Request, r *Route, params httprouter.P
 		return errors.New("can't delete root")
 	}
 
-	if err = selected.Parent.RequirePermission(core.Remove, r.User); err != nil {
+	if err = r.User.RequirePermission(core.Remove, selected.Parent); err != nil {
 		return err
 	}
 

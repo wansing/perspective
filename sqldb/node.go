@@ -40,6 +40,7 @@ type node struct {
 	tsCreated          int64
 	maxVersionNo       int
 	maxWGZeroVersionNo int
+	version
 }
 
 func (e *node) Id() int {
@@ -93,10 +94,8 @@ type NodeDB struct {
 	getChildrenChronologicallyDesc         *sql.Stmt
 	getReleasedChildrenAlphabetically      *sql.Stmt
 	getReleasedChildrenChronologicallyDesc *sql.Stmt
-	getLatest                              *sql.Stmt
-	getNode                                *sql.Stmt
 	getNodeById                            *sql.Stmt
-	getParentAndSlug                       *sql.Stmt
+	getNodeBySlug                          *sql.Stmt
 	getVersion                             *sql.Stmt
 	insertNode                             *sql.Stmt
 	insertVersion                          *sql.Stmt
@@ -149,10 +148,8 @@ func NewNodeDB(db *sql.DB) *NodeDB {
 
 	nodeDB.getReleasedChildrenAlphabetically = mustPrepare(db, "SELECT e.id, e.parentId, e.slug, e.class, e.ts_created, e.maxVersion, e.maxWGZeroVersion, v.versionNr, v.versionNote, v.content, v.ts_changed, v.workflow_group FROM element e, version v WHERE e.parentId = ? AND e.id = v.id AND v.versionNr = e.maxWGZeroVersion ORDER BY slug LIMIT ? OFFSET ?")
 	nodeDB.getReleasedChildrenChronologicallyDesc = mustPrepare(db, "SELECT e.id, e.parentId, e.slug, e.class, e.ts_created, e.maxVersion, e.maxWGZeroVersion, v.versionNr, v.versionNote, v.content, v.ts_changed, v.workflow_group FROM element e, version v WHERE e.parentId = ? AND e.id = v.id AND v.versionNr = e.maxWGZeroVersion ORDER BY ts_created DESC LIMIT ? OFFSET ?")
-	nodeDB.getLatest = mustPrepare(db, "SELECT versionNr, versionNote, content, ts_changed, workflow_group FROM version WHERE id = ? ORDER BY versionNr DESC LIMIT 1") // in contrast to getVersion(e.maxVersion), this works if there is no version yet
-	nodeDB.getNode = mustPrepare(db, "SELECT id, parentId, slug, class, ts_created, maxVersion, maxWGZeroVersion FROM element WHERE parentId = ? AND slug = ? LIMIT 1")
 	nodeDB.getNodeById = mustPrepare(db, "SELECT id, parentId, slug, class, ts_created, maxVersion, maxWGZeroVersion FROM element WHERE id = ? LIMIT 1")
-	nodeDB.getParentAndSlug = mustPrepare(db, "SELECT parentId, slug FROM element WHERE id = ?")
+	nodeDB.getNodeBySlug = mustPrepare(db, "SELECT id, parentId, slug, class, ts_created, maxVersion, maxWGZeroVersion FROM element WHERE parentId = ? AND slug = ? LIMIT 1")
 	nodeDB.getVersion = mustPrepare(db, "SELECT versionNr, versionNote, content, ts_changed, workflow_group FROM version WHERE id = ? AND versionNr = ? LIMIT 1")
 	nodeDB.insertNode = mustPrepare(db, "INSERT INTO element (parentId, slug, class, ts_created, maxVersion, maxWGZeroVersion) VALUES (?, ?, ?, ?, ?, ?)")
 	nodeDB.insertVersion = mustPrepare(db, "INSERT INTO version (id, versionNr, versionNote, content, ts_changed, workflow_group) VALUES (?, ?, ?, ?, ?, ?)")
@@ -206,14 +203,14 @@ func (db *NodeDB) AddVersion(e core.DBNode, content, versionNote string, workflo
 	return nil
 }
 
-func (db *NodeDB) CountChildren(n core.DBNode) (int, error) {
+func (db *NodeDB) CountChildren(id int) (int, error) {
 	var count int
-	return count, db.countChildren.QueryRow(n.Id()).Scan(&count)
+	return count, db.countChildren.QueryRow(id).Scan(&count)
 }
 
-func (db *NodeDB) CountReleasedChildren(n core.DBNode, minTsCreated int64) (int, error) {
+func (db *NodeDB) CountReleasedChildren(id int) (int, error) {
 	var count int
-	return count, db.countReleased.QueryRow(n.Id(), minTsCreated).Scan(&count)
+	return count, db.countReleased.QueryRow(id).Scan(&count)
 }
 
 func (db *NodeDB) DeleteNode(e core.DBNode) error {
@@ -248,55 +245,46 @@ func (db *NodeDB) DeleteNode(e core.DBNode) error {
 	return tx.Commit()
 }
 
+func (db *NodeDB) GetNodeById(id int) (core.DBNode, error) {
+	var n = &node{}
+	return n, db.getNodeById.QueryRow(id).Scan(&n.id, &n.parentId, &n.slug, &n.className, &n.tsCreated, &n.maxVersionNo, &n.maxWGZeroVersionNo)
+}
+
 // may return sql.ErrNoRows
 // we could do a database join instead of getting node and version separately, but that would triple some code
-func (db *NodeDB) GetNode(parentId int, slug string) (core.DBNode, error) {
+func (db *NodeDB) GetNodeBySlug(parentId int, slug string) (core.DBNode, error) {
 	var e = &node{}
-	return e, db.getNode.QueryRow(parentId, slug).Scan(&e.id, &e.parentId, &e.slug, &e.className, &e.tsCreated, &e.maxVersionNo, &e.maxWGZeroVersionNo)
+	return e, db.getNodeBySlug.QueryRow(parentId, slug).Scan(&e.id, &e.parentId, &e.slug, &e.className, &e.tsCreated, &e.maxVersionNo, &e.maxWGZeroVersionNo)
 }
 
-func (db *NodeDB) GetParentAndSlug(id int) (parentId int, slug string, err error) {
-	return parentId, slug, db.getParentAndSlug.QueryRow(id).Scan(&parentId, &slug)
-}
-
-func (db *NodeDB) GetReleasedNodeById(id int) (core.DBNode, core.DBVersion, error) {
-	var n = &node{}
-	if err := db.getNodeById.QueryRow(id).Scan(&n.id, &n.parentId, &n.slug, &n.className, &n.tsCreated, &n.maxVersionNo, &n.maxWGZeroVersionNo); err != nil {
-		return nil, nil, err
-	}
+func (db *NodeDB) GetVersion(id int, versionNo int) (core.DBVersion, error) {
 	var v = &version{}
-	// relies on correct maxWGZeroVersionNo
-	return n, v, db.getVersion.QueryRow(n.id, n.maxWGZeroVersionNo).Scan(&v.versionNo, &v.versionNote, &v.content, &v.tsChanged, &v.workflowGroupId)
+	return v, db.getVersion.QueryRow(id, versionNo).Scan(&v.versionNo, &v.versionNote, &v.content, &v.tsChanged, &v.workflowGroupId)
 }
 
-func (db *NodeDB) GetVersion(n core.DBNode, versionNo int) (core.DBVersion, error) {
-	var v = &version{}
-	return v, db.getVersion.QueryRow(n.Id(), versionNo).Scan(&v.versionNo, &v.versionNote, &v.content, &v.tsChanged, &v.workflowGroupId)
-}
-
-func (db *NodeDB) GetChildren(parent core.DBNode, order core.Order, limit, offset int) ([]core.DBNode, error) {
+func (db *NodeDB) GetChildren(id int, order core.Order, limit, offset int) ([]core.DBNodeVersion, error) {
 	switch order {
 	case core.AlphabeticallyAsc:
-		return db.getChildren(db.getChildrenAlphabetically, parent.Id(), limit, offset)
+		return db.getChildren(db.getChildrenAlphabetically, id, limit, offset)
 	case core.ChronologicallyDesc:
-		return db.getChildren(db.getChildrenChronologicallyDesc, parent.Id(), limit, offset)
+		return db.getChildren(db.getChildrenChronologicallyDesc, id, limit, offset)
 	default:
 		return nil, fmt.Errorf("unknown order %d", order)
 	}
 }
 
-func (db *NodeDB) GetReleasedChildren(parent core.DBNode, order core.Order, limit, offset int) ([]core.DBNodeVersion, error) {
+func (db *NodeDB) GetReleasedChildren(id int, order core.Order, limit, offset int) ([]core.DBNodeVersion, error) {
 	switch order {
 	case core.AlphabeticallyAsc:
-		return db.getChildrenNV(db.getReleasedChildrenAlphabetically, parent.Id(), limit, offset)
+		return db.getChildrenNV(db.getReleasedChildrenAlphabetically, id, limit, offset)
 	case core.ChronologicallyDesc:
-		return db.getChildrenNV(db.getReleasedChildrenChronologicallyDesc, parent.Id(), limit, offset)
+		return db.getChildrenNV(db.getReleasedChildrenChronologicallyDesc, id, limit, offset)
 	default:
 		return nil, fmt.Errorf("unknown order %d", order)
 	}
 }
 
-func (db *NodeDB) getChildren(stmt *sql.Stmt, args ...interface{}) ([]core.DBNode, error) {
+func (db *NodeDB) getChildren(stmt *sql.Stmt, args ...interface{}) ([]core.DBNodeVersion, error) {
 
 	rows, err := stmt.Query(args...)
 	if err != nil {
@@ -304,12 +292,10 @@ func (db *NodeDB) getChildren(stmt *sql.Stmt, args ...interface{}) ([]core.DBNod
 	}
 	defer rows.Close()
 
-	var children = []core.DBNode{}
+	var children = []core.DBNodeVersion{}
 
 	for rows.Next() {
-		var child = &node{
-			//db: db,
-		}
+		var child = &node{}
 		err := rows.Scan(&child.id, &child.parentId, &child.slug, &child.className, &child.tsCreated, &child.maxVersionNo, &child.maxWGZeroVersionNo)
 		if err != nil {
 			return nil, err
@@ -374,7 +360,7 @@ func (db *NodeDB) SetSlug(e core.DBNode, slug string) error {
 	return err
 }
 
-func (db *NodeDB) SetWorkflowGroup(e core.DBNodeVersionStub, groupId int) error {
+func (db *NodeDB) SetWorkflowGroup(n core.DBNode, v core.DBVersionStub, groupId int) error {
 
 	tx, err := db.Begin()
 	if err != nil {
@@ -383,7 +369,7 @@ func (db *NodeDB) SetWorkflowGroup(e core.DBNodeVersionStub, groupId int) error 
 
 	// update version
 
-	_, err = tx.Stmt(db.setWorkflowGroup).Exec(groupId, e.Id(), e.VersionNo())
+	_, err = tx.Stmt(db.setWorkflowGroup).Exec(groupId, n.Id(), v.VersionNo())
 	if err != nil {
 		tx.Rollback()
 		return err
@@ -393,12 +379,12 @@ func (db *NodeDB) SetWorkflowGroup(e core.DBNodeVersionStub, groupId int) error 
 
 	var newMWGZV int
 
-	if err := tx.Stmt(db.calculateMWGZV).QueryRow(e.Id()).Scan(&newMWGZV); err != nil {
+	if err := tx.Stmt(db.calculateMWGZV).QueryRow(n.Id()).Scan(&newMWGZV); err != nil {
 		tx.Rollback()
 		return err
 	}
 
-	if _, err := tx.Stmt(db.setMWGZV).Exec(newMWGZV, e.Id()); err != nil {
+	if _, err := tx.Stmt(db.setMWGZV).Exec(newMWGZV, n.Id()); err != nil {
 		tx.Rollback()
 		return err
 	}
@@ -407,18 +393,20 @@ func (db *NodeDB) SetWorkflowGroup(e core.DBNodeVersionStub, groupId int) error 
 		return err
 	}
 
-	// TODO what if type(e) == version?
-	if ev, ok := e.(*nodeVersion); ok {
-		ev.maxWGZeroVersionNo = newMWGZV
-		ev.workflowGroupId = groupId
+	if nn, ok := n.(*node); ok {
+		nn.maxWGZeroVersionNo = newMWGZV
+	}
+
+	if vv, ok := v.(*version); ok {
+		vv.workflowGroupId = groupId
 	}
 
 	return nil
 }
 
-func (db *NodeDB) Versions(n core.DBNode) ([]core.DBVersionStub, error) {
+func (db *NodeDB) Versions(id int) ([]core.DBVersionStub, error) {
 
-	rows, err := db.versions.Query(n.Id())
+	rows, err := db.versions.Query(id)
 	if err != nil {
 		return nil, err
 	}

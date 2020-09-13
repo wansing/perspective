@@ -1,6 +1,6 @@
 package auth
 
-// A ReleaseState contains the state of a specific node in its workflow, when it is edited by a specific user.
+// A ReleaseState contains the state of a specific node and version in their workflow, when edited by a specific user.
 //
 // Currently it follows the subset model (see the package comment). Its functions might become an interface for different workflow models.
 type ReleaseState struct {
@@ -43,7 +43,7 @@ func GetReleaseState(workflow *Workflow, workflowGroupId int, user User) (*Relea
 	}, nil
 }
 
-func (rs *ReleaseState) CanEdit() bool {
+func (rs *ReleaseState) CanEditNode() bool {
 	for _, is := range rs.isMember {
 		if is {
 			return true

@@ -3,29 +3,36 @@ package backend
 import (
 	"errors"
 	"net/http"
+	"strconv"
 
 	"github.com/julienschmidt/httprouter"
 )
 
 func release(w http.ResponseWriter, req *http.Request, r *Route, params httprouter.Params) error {
 
-	if req.Method != http.MethodPost {
-		return errors.New("POST requests only")
-	}
-
 	selected, err := r.Open(params.ByName("path"))
 	if err != nil {
 		return err
 	}
 
-	defer r.SeeOther("/edit%s:%d", selected.HrefPath(), selected.VersionNo())
+	versionNo, _ := strconv.Atoi(params.ByName("version"))
+	if versionNo == 0 {
+		versionNo = selected.MaxVersionNo()
+	}
 
-	state, err := selected.ReleaseState(r.User)
+	selectedVersion, err := selected.GetVersion(versionNo)
 	if err != nil {
 		return err
 	}
 
-	if !state.CanEdit() {
+	defer r.SeeOther("/edit/%d%s", versionNo, selected.HrefPath())
+
+	state, err := r.User.ReleaseState(selected, selectedVersion)
+	if err != nil {
+		return err
+	}
+
+	if !state.CanEditNode() {
 		return ErrAuth
 	}
 
@@ -34,7 +41,7 @@ func release(w http.ResponseWriter, req *http.Request, r *Route, params httprout
 		return errors.New("no release group")
 	}
 
-	if err = r.db.SetWorkflowGroup(selected, (*releaseToGroup).Id()); err != nil {
+	if err = r.db.SetWorkflowGroup(selected, selectedVersion, (*releaseToGroup).Id()); err != nil {
 		return err
 	}
 

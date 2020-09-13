@@ -17,7 +17,7 @@ type ClassRegistry interface {
 }
 
 type Class struct {
-	Create               func() Instance
+	Create               func() Instance // for initialization work only
 	Name                 string
 	Code                 string
 	Info                 string
@@ -31,27 +31,15 @@ func (class *Class) InfoHTML() template.HTML {
 
 // An Instance of a Class is wrapped around an Node.
 type Instance interface {
-	AdditionalSlugs() []string
-	GetNode() *Node // classes can access Foo.Base.Node directly, but the core has just a Class object and must use this method to get the *Node
-	SetNode(*Node)
+	AdditionalSlugs() []string // should be called after Do only
 	Do(*Route) error
 }
 
-// All Instances should embed the Base class.
-type Base struct {
-	*Node
-}
+// Instances can embed the Base class.
+type Base struct {}
 
 func (t *Base) AdditionalSlugs() []string {
 	return nil
-}
-
-func (t *Base) GetNode() *Node {
-	return t.Node
-}
-
-func (t *Base) SetNode(node *Node) {
-	t.Node = node
 }
 
 func (t *Base) Do(r *Route) error {

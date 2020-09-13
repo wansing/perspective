@@ -20,39 +20,41 @@ import (
 // (There is no definition which one is used if pressing enter.)
 var editTmpl = tmpl(`{{ Breadcrumbs .Selected true }}
 
-	<div>
-		{{ .Selected.Class.Name }} &middot; ID: {{ .Selected.Id }} &middot; Workflow: <em>{{ WorkflowLink .State.Workflow }}</em> &middot; Workflow group: <em><strong>{{ .State.WorkflowGroup.Name }}</strong></em>
+	<div class="mb-3">
+		{{ .Selected.Class.Name }} &middot; ID: {{ .Selected.Id }} &middot; Workflow: <em>{{ WorkflowLink .State.Workflow }}</em>
 
-		{{ with .State.ReleaseToGroup }}
-			&middot;
-			<form style="display: inline;" action="{{ $.Prefix }}release{{ $.Selected.HrefPath }}:{{ $.Selected.VersionNo }}" method="post" enctype="multipart/form-data">
-				<button type="submit" class="btn btn-sm btn-secondary" id="release_button">Release</button>
-				<!-- might delete old versions -->
-			</form>
-			to <em>{{ .Name }}</em>
+		{{ if ne .SelectedVersion.VersionNo 0 }}
+			&middot; Version: {{ .SelectedVersion.VersionNo }} ({{ FormatTs .SelectedVersion.TsChanged }})
+			&middot; Workflow group: <em><strong>{{ .State.WorkflowGroup.Name }}</strong></em>
+
+			{{ with .State.ReleaseToGroup }}
+				&middot;
+				<form style="display: inline;" action="{{ $.Prefix }}release/{{ $.SelectedVersion.VersionNo }}{{ $.Selected.HrefPath }}" method="post" enctype="multipart/form-data">
+					<button type="submit" class="btn btn-sm btn-secondary" id="release_button">Release</button>
+					<!-- might delete old versions -->
+				</form>
+				to <em>{{ .Name }}</em>
+			{{ end }}
+
+			{{ if and .State.RevokeToGroup .State.ReleaseToGroup }}
+				or
+			{{ end }}
+
+			{{ with .State.RevokeToGroup }}
+				&middot;
+				<form style="display: inline;" action="{{ $.Prefix }}revoke/{{ $.SelectedVersion.VersionNo }}{{ $.Selected.HrefPath }}" method="post" enctype="multipart/form-data">
+					<button type="submit" class="btn btn-sm btn-secondary" id="revoke_button">Revoke</button>
+					<!-- might delete old versions -->
+				</form>
+				to <em>{{ .Name }}</em>
+			{{ end }}
 		{{ end }}
-
-		{{ if and .State.RevokeToGroup .State.ReleaseToGroup }}
-			or
-		{{ end }}
-
-		{{ with .State.RevokeToGroup }}
-			&middot;
-			<form style="display: inline;" action="{{ $.Prefix }}revoke{{ $.Selected.HrefPath }}:{{ $.Selected.VersionNo }}" method="post" enctype="multipart/form-data">
-				<button type="submit" class="btn btn-sm btn-secondary" id="revoke_button">Revoke</button>
-				<!-- might delete old versions -->
-			</form>
-			to <em>{{ .Name }}</em>
-		{{ end }}
-
 	</div>
 
-	<h1>Edit version {{ FormatTs .Selected.TsChanged }}</h1>
-
-	{{ if ne .Selected.VersionNo .Selected.MaxVersionNo }}
+	{{ if ne .SelectedVersion.VersionNo .Selected.MaxVersionNo }}
 		<div class="alert alert-warning">
-			You are editing an old version: {{ .Selected.VersionNo }} of {{ .Selected.MaxVersionNo }}.
-			<a id="edit_latest_link" href="edit{{ .Selected.HrefPath }}:{{ .Selected.MaxVersionNo }}">
+			You are editing an old version: {{ .SelectedVersion.VersionNo }} of {{ .Selected.MaxVersionNo }}.
+			<a id="edit_latest_link" href="edit/{{ .Selected.MaxVersionNo }}{{ .Selected.HrefPath }}">
 				Edit the latest version instead.
 			</a>
 		</div>
@@ -262,6 +264,7 @@ var editTmpl = tmpl(`{{ Breadcrumbs .Selected true }}
 type editData struct {
 	*Route
 	Selected        *core.Node
+	SelectedVersion core.DBVersion
 	State           *auth.ReleaseState
 	Content         string
 	VersionNote     string
@@ -285,30 +288,30 @@ func (data *editData) VersionHistory() (template.HTML, error) {
 		return template.HTML(""), err
 	}
 
-	for _, version := range versions {
+	for _, v := range versions {
 
 		w.WriteString(`
 			<tr`)
 
-		if version.VersionNo() == data.Selected.VersionNo() {
+		if v.VersionNo() == data.SelectedVersion.VersionNo() {
 			w.WriteString(` class="table-active"`)
 		}
 
 		w.WriteString(`>
-			<td>` + strconv.Itoa(version.VersionNo()) + `</td>
-			<td>` + FormatTs(version.TsChanged()) + `</td>
-			<td>` + html.EscapeString(version.VersionNote()) + `</td>
+			<td>` + strconv.Itoa(v.VersionNo()) + `</td>
+			<td>` + FormatTs(v.TsChanged()) + `</td>
+			<td>` + html.EscapeString(v.VersionNote()) + `</td>
 			<td>
 		`)
 
 		// not taking groups from the workflow because the workflow might have changed in the meantime, not containing the group any more
-		if grp, err := data.db.Auth.GetGroupOrReaders(version.WorkflowGroupId()); err == nil {
+		if grp, err := data.db.Auth.GetGroupOrReaders(v.WorkflowGroupId()); err == nil {
 			w.WriteString(html.EscapeString(grp.Name()))
 		}
 
 		w.WriteString(`
 			<td>
-				<a href="edit` + data.Selected.HrefPath() + ":" + strconv.Itoa(version.VersionNo()) + `">Open</a>
+				<a href="edit/` + strconv.Itoa(v.VersionNo()) + data.Selected.HrefPath() + `">Open</a>
 			</td>
 		`)
 
@@ -326,20 +329,33 @@ func edit(w http.ResponseWriter, req *http.Request, r *Route, params httprouter.
 		return err
 	}
 
-	state, err := selected.ReleaseState(r.User)
+	versionNo, _ := strconv.Atoi(params.ByName("version"))
+	if versionNo == 0 {
+		versionNo = selected.MaxVersionNo()
+	}
+
+	var selectedVersion core.DBVersion = core.NoVersion{} // easier than checking for nil in this whole file
+	if versionNo != 0 {
+		selectedVersion, err = selected.GetVersion(versionNo)
+		if err != nil {
+			return err
+		}
+	}
+
+	state, err := r.User.ReleaseState(selected, selectedVersion)
 	if err != nil {
 		return err
 	}
 
-	if !state.CanEdit() {
+	if !state.CanEditNode() {
 		return ErrAuth
 	}
 
-	var content = selected.Content()
+	var content = selectedVersion.Content()
 
 	var versionNote string
-	if selected.VersionNo() != selected.MaxVersionNo() {
-		versionNote = fmt.Sprintf("reverted to version %d", selected.VersionNo())
+	if selectedVersion.VersionNo() != selected.MaxVersionNo() {
+		versionNote = fmt.Sprintf("modified version %d of %d", selectedVersion.VersionNo(), selected.MaxVersionNo())
 	}
 
 	var workflowGroupId int
@@ -364,8 +380,8 @@ func edit(w http.ResponseWriter, req *http.Request, r *Route, params httprouter.
 		var uploadFiles = req.MultipartForm.File["upload[]"]
 		defer req.MultipartForm.RemoveAll()
 
-		if err = doEdit(r, selected, content, versionNote, r.User.Name(), workflowGroupId, deleteFiles, uploadFiles); err == nil {
-			r.SeeOther("/edit%s", selected.HrefPath())
+		if err = doEdit(r, selected, selectedVersion, content, versionNote, r.User.Name(), workflowGroupId, deleteFiles, uploadFiles); err == nil {
+			r.SeeOther("/edit/%d%s", 0 /* evaluates to max version number, might be racey */, selected.HrefPath())
 			return nil
 		} else {
 			r.Danger(err)
@@ -376,6 +392,7 @@ func edit(w http.ResponseWriter, req *http.Request, r *Route, params httprouter.
 	return editTmpl.Execute(w, &editData{
 		Route:           r,
 		Selected:        selected,
+		SelectedVersion: selectedVersion,
 		State:           state,
 		Content:         content,
 		VersionNote:     versionNote,
@@ -383,7 +400,7 @@ func edit(w http.ResponseWriter, req *http.Request, r *Route, params httprouter.
 	})
 }
 
-func doEdit(r *Route, selected *core.Node, content, versionNote, username string, workflowGroupId int, deleteFiles []string, uploadFiles []*multipart.FileHeader) error {
+func doEdit(r *Route, selected *core.Node, selectedVersion core.DBVersion, content, versionNote, username string, workflowGroupId int, deleteFiles []string, uploadFiles []*multipart.FileHeader) error {
 
 	// delete files
 
@@ -411,8 +428,8 @@ func doEdit(r *Route, selected *core.Node, content, versionNote, username string
 
 	// edit content (versioned)
 
-	if content != selected.Content() {
-		if err := r.db.Edit(selected, content, versionNote, username, workflowGroupId); err != nil {
+	if content != selectedVersion.Content() {
+		if err := r.db.Edit(selected, selectedVersion, content, versionNote, username, workflowGroupId); err != nil {
 			return err
 		}
 	}

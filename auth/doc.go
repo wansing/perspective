@@ -6,7 +6,7 @@ Workflows
 A workflow is a list of groups.
 One workflow is assigned (explicitly or inherited) to every node.
 One group of the assigned workflow, called "workflow group", is assigned to every version.
-Every member of any workflow group can view and edit the node.
+Every member of any workflow group can view every version and create new versions.
 Users can revoke and release versions, which means changing its workflow group.
 When a member of the last group releases a version, its workflow group becomes "Readers" (id 0) and it is visible to everyone with read permission.
 

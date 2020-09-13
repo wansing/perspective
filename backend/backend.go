@@ -98,14 +98,14 @@ func NewBackendRouter(db *core.CoreDB, prefix string) http.Handler {
 	GETAndPOST("/create/*path", middleware(db, prefix, true, create))
 	GETAndPOST("/create-root-node", middleware(db, prefix, true, createRootNode))
 	GETAndPOST("/delete/*path", middleware(db, prefix, true, del))
-	GETAndPOST("/edit/*path", middleware(db, prefix, true, edit))
+	GETAndPOST("/edit/:version/*path", middleware(db, prefix, true, edit))
 	GETAndPOST("/groups", middleware(db, prefix, true, groups))
 	GETAndPOST("/group/:id", middleware(db, prefix, true, group))
 	router.GET("/logout", middleware(db, prefix, true, logout))
 	GETAndPOST("/move/*path", middleware(db, prefix, true, move))
-	GETAndPOST("/release/*path", middleware(db, prefix, true, release))
+	router.POST("/release/:version/*path", middleware(db, prefix, true, release))
 	GETAndPOST("/rename/*path", middleware(db, prefix, true, rename))
-	GETAndPOST("/revoke/*path", middleware(db, prefix, true, revoke))
+	router.POST("/revoke/:version/*path", middleware(db, prefix, true, revoke))
 	router.GET("/rules", middleware(db, prefix, true, rules))
 	router.GET("/users", middleware(db, prefix, true, users))
 	GETAndPOST("/user/:id", middleware(db, prefix, true, user))
@@ -319,14 +319,14 @@ var backendTmpl = template.Must(template.New("backend").Parse(`
 		"Breadcrumbs": func(im *core.Node, link bool) template.HTML {
 			return Breadcrumbs(im, link)
 		},
-		"CanAdmin": func(u auth.User, e *core.Node) bool {
-			return e.RequirePermission(core.Admin, u) == nil
+		"CanAdmin": func(u *core.User, e *core.Node) bool {
+			return u.RequirePermission(core.Admin, e) == nil
 		},
-		"CanCreate": func(u auth.User, e *core.Node) bool {
-			return e.RequirePermission(core.Create, u) == nil
+		"CanCreate": func(u *core.User, e *core.Node) bool {
+			return u.RequirePermission(core.Create, e) == nil
 		},
-		"CanRemove": func(u auth.User, e *core.Node) bool {
-			return e.RequirePermission(core.Remove, u) == nil
+		"CanRemove": func(u *core.User, e *core.Node) bool {
+			return u.RequirePermission(core.Remove, e) == nil
 		},
 		"FormatTs": FormatTs,
 		"GroupLink": func(group auth.Group) template.HTML {

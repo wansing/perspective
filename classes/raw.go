@@ -34,7 +34,7 @@ func (t *Raw) Do(r *core.Route) error {
 
 	// parse and execute the user content into templates
 
-	parsed, err := template.New("body").Funcs(RawTemplateFuncs).Parse(r.Node.Content())
+	parsed, err := template.New("body").Funcs(RawTemplateFuncs).Parse(r.Content())
 	if err != nil {
 		return err
 	}

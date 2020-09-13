@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/alexedwards/scs/v2"
-	"github.com/wansing/perspective/auth"
+	//"github.com/wansing/perspective/auth"
 	"golang.org/x/text/language"
 )
 
@@ -40,8 +40,8 @@ var monthNamesDe = strings.NewReplacer(
 
 // A Request is created by CoreDB.NewRequest.
 type Request struct {
-	db   *CoreDB // unexported, so it can't be accessed in templates
-	User auth.User
+	db   *CoreDB // unexported, so templates can't access it
+	User *User
 
 	// http
 	writer  http.ResponseWriter
@@ -78,7 +78,7 @@ func (c *CoreDB) NewRequest(w http.ResponseWriter, httpreq *http.Request) *Reque
 	if uid := c.SessionManager.GetInt(httpreq.Context(), "uid"); uid != 0 {
 		u, err := c.Auth.GetUser(uid)
 		if u != nil && err == nil {
-			req.User = u
+			req.User = &User{u}
 		}
 		// ignore errors
 	}
@@ -151,7 +151,7 @@ func (req *Request) Login(mail string, enteredPass string) error {
 		return nil
 	}
 	if u, err := req.db.Auth.LoginUser(mail, enteredPass); err == nil {
-		req.User = u
+		req.User = &User{u}
 	} else {
 		return err // is ErrAuth if mail or enteredPass is wrong
 	}

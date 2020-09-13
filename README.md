@@ -1,5 +1,7 @@
 # perspective
 
+**This is alpha software.**
+
 perspective is a content management system for websites, written in Go.
 
 ## Initialize empty database
@@ -24,4 +26,4 @@ perspective will be dual-licensed under commercial and open source licenses.
 
 ### Contributor License Agreement
 
-By contributing code, you assign its ownership to me. (That is required for commercial licensing.)
+By contributing code, you assign its ownership to me. (That is required for dual licensing.)

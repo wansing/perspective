@@ -76,8 +76,8 @@ type Markdown struct {
 
 func (t *Markdown) Do(r *core.Route) error {
 
-	rendered := renderMarkdown(strings.NewReader(t.Node.Content()))
-	t.Node.SetContent(rendered)
+	rendered := renderMarkdown(strings.NewReader(r.Content()))
+	r.SetContent(rendered)
 
 	return t.HTML.Do(r)
 }
