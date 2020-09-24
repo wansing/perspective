@@ -216,7 +216,7 @@ func (req *Request) IsHTML() bool {
 // IsRootAdmin returns true if the user has admin permission for the root node.
 func (req *Request) IsRootAdmin() bool {
 	// node id 1 is more robust than Node.Parent.Parent..., which relies on the consistency of the Parent field
-	if err := req.db.requirePermissionById(Admin, 1, req.User, nil); err == nil {
+	if err := req.db.requireRule(Admin, RootId, req.User, nil); err == nil {
 		return true
 	} else {
 		return false

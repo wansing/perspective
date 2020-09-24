@@ -44,7 +44,7 @@ type NodeDB interface {
 	CountChildren(id int) (int, error)
 	CountReleasedChildren(id int) (int, error)
 	DeleteNode(n DBNode) error
-	GetChildren(id int, order Order, limit, offset int) ([]DBNodeVersion, error) // version part can be empty, exists yjust because it makes caching easier
+	GetChildren(id int, order Order, limit, offset int) ([]DBNodeVersion, error) // version part can be empty, exists just because it makes caching easier
 	GetNodeById(id int) (DBNode, error)
 	GetNodeBySlug(parentId int, slug string) (DBNode, error)
 	GetReleasedChildren(id int, order Order, limit, offset int) ([]DBNodeVersion, error)

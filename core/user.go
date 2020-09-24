@@ -67,7 +67,7 @@ func (u *User) requirePermissionRecursive(perm Permission, n *Node, permittingRu
 		return ErrUnauthorized
 	}
 
-	if err := n.db.requirePermissionById(perm, n.Id(), u, permittingRules); err == nil {
+	if err := n.db.requireRule(perm, n.Id(), u, permittingRules); err == nil {
 		return nil
 	}
 

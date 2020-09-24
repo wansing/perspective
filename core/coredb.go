@@ -149,9 +149,9 @@ func (c *CoreDB) internalPathByNodeId(id int, maxDepth int) (string, error) {
 	return "/" + strings.Join(slugs, "/"), nil
 }
 
-// requirePermissionById checks if a node with a given id has a rule which gives permission to the user.
+// requireRule checks if a node with a given id has a rule which gives permission to the user.
 // If permittingRules is not nil, then it is populated.
-func (c *CoreDB) requirePermissionById(required Permission, nodeId int, u auth.User, permittingRules *map[int]map[int]interface{}) error {
+func (c *CoreDB) requireRule(required Permission, nodeId int, u auth.User, permittingRules *map[int]map[int]interface{}) error {
 
 	if u == nil && required > Read {
 		return ErrUnauthorized
