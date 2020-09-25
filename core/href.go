@@ -1,8 +1,6 @@
 package core
 
 import (
-	"fmt"
-	"path"
 	"regexp"
 	"strings"
 )
@@ -25,78 +23,37 @@ func NormalizeSlug(slug string) string {
 	return slug
 }
 
-// recursive
-func (n *Node) whereami(external bool, versionNo ...int) []string {
+func (n *Node) Location() string {
 
-	if n == nil {
-		return []string{}
+	var nodes = []*Node{} // reversed
+	for p := n; p != nil; p = p.Parent {
+		nodes = append(nodes, p)
 	}
 
-	// recurse
+	var slugs = []string{}
 
-	var where = n.Parent.whereami(external, versionNo...)
+	for i := len(nodes) - 2; i >= 0; i-- { // -2, omit root slug
+		slugs = append(slugs, nodes[i].Slug())
+	}
 
-	// URL segment
+	return "/" + strings.Join(slugs, "/")
+}
 
-	if !external || (external && !n.IsPushed()) {
+func (n *Node) Link() string {
 
-		var segment = n.Slug()
+	var nodes = []*Node{} // reversed
+	for p := n; p != nil; p = p.Parent {
+		nodes = append(nodes, p)
+	}
 
-		if n.Parent == nil { // omit root slug
-			segment = ""
+	var slugs = []string{}
+
+	for i := len(nodes) - 1; i >= 0; i-- {
+		if segment := nodes[i].Slug(); nodes[i].Parent != nil && segment != "default" { // neither root nor "default"
+			slugs = append(slugs, segment)
 		}
-
-		for i := 0; i < len(versionNo)-1; i = i + 2 {
-			if versionNo[i] == n.Id() {
-				segment = fmt.Sprintf("%s:%d", segment, versionNo[i+1])
-			}
-		}
-
-		if segment != "" { // true for root iff it has a non-default versionNo
-			where = append(where, segment)
-		}
+		slugs = append(slugs, nodes[i].AdditionalSlugs()...)
 	}
 
-	if external {
-		where = append(where, n.AdditionalSlugs()...)
-	}
-
-	return where
-}
-
-// Href returns the location of the node as a string.
-// Like Queue.String(), it returns like "/foo:42/bar" or "/".
-//
-// Usually params are omitted and pushed slugs are included.
-// Pass external = true to invert this behavior.
-func (n *Node) Href(external bool, versionNo ...int) string {
-
-	var href string
-
-	if segments := n.whereami(external, versionNo...); len(segments) > 0 {
-		href += "/" + strings.Join(segments, "/")
-	}
-
-	if href == "" {
-		href = "/"
-	}
-
-	return href
-}
-
-func (n *Node) HrefPath(versionNo ...int) string {
-	return n.Href(false, versionNo...)
-}
-
-func (n *Node) HrefView(versionNo ...int) string {
-	return n.Href(true, versionNo...)
-}
-
-// If p is relative, MakeAbsolute prepends the HrefPath of the receiver.
-// Then p is cleaned and returned.
-func (n *Node) MakeAbsolute(p string) string {
-	if !path.IsAbs(p) {
-		p = n.HrefPath() + "/" + p
-	}
-	return path.Clean(p)
+	return "/" + strings.Join(slugs, "/")
 }

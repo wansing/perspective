@@ -1,5 +1,7 @@
 package core
 
+import "github.com/wansing/perspective/util"
+
 type DBVersionStub interface {
 	TsChanged() int64
 	VersionNo() int // ascending
@@ -12,12 +14,53 @@ type DBVersion interface {
 	Content() string
 }
 
-// VersionWrapContent implements DBVersion and overrides Content().
-type VersionWrapContent struct {
+type Version struct {
 	DBVersion
-	content string
+	NewContent    string
+	HasNewContent bool
+	Tags          []string
+	Timestamps    []int64
 }
 
-func (v VersionWrapContent) Content() string {
-	return v.content
+func NewVersion(dbVersion DBVersion) *Version {
+	return &Version{
+		DBVersion:  dbVersion,
+		Tags:       []string{},
+		Timestamps: []int64{},
+	}
+}
+
+func (v *Version) Content() string {
+	if v == nil {
+		return ""
+	}
+	if v.HasNewContent {
+		return v.NewContent
+	} else {
+		return v.DBVersion.Content()
+	}
+}
+
+func (v *Version) SetContent(content string) {
+	if v == nil {
+		return
+	}
+	v.NewContent = content
+	v.HasNewContent = true
+}
+
+// Tags adds one or more tags to the current version.
+func (v *Version) Tag(tags ...string) interface{} {
+	v.Tags = append(v.Tags, tags...)
+	return nil
+}
+
+// Ts adds one or more timestamps to the current version. Arguments are parsed with util.ParseTime.
+func (v *Version) Ts(dates ...string) interface{} {
+	for _, dateStr := range dates {
+		if ts, err := util.ParseTime(dateStr); err == nil {
+			v.Timestamps = append(v.Timestamps, ts)
+		}
+	}
+	return nil
 }

@@ -38,18 +38,18 @@ var chooseTmpl = tmpl(`{{ Breadcrumbs .Selected false }}
 				</tr>
 				<tr class="table-light">
 					<td colspan="4" style="border-top: 0; text-align: center;">
-						<a class="btn btn-sm btn-primary" href="edit/0{{ .Selected.HrefPath }}">Edit</a>
-						<a class="btn btn-sm btn-primary" href="class{{ .Selected.HrefPath }}">Set class</a>
+						<a class="btn btn-sm btn-primary" href="edit/0{{ .Selected.Location }}">Edit</a>
+						<a class="btn btn-sm btn-primary" href="class{{ .Selected.Location }}">Set class</a>
 						{{ if CanCreate .User .Selected }}
-							<a class="btn btn-sm btn-primary" href="create{{ .Selected.HrefPath }}">Create</a>
+							<a class="btn btn-sm btn-primary" href="create{{ .Selected.Location }}">Create</a>
 						{{ end }}
 						{{ if and .Selected.Parent (CanRemove .User .Selected) }}
-							<a class="btn btn-sm btn-primary" href="rename{{ .Selected.HrefPath }}">Rename</a>
-							<a class="btn btn-sm btn-primary" href="move{{ .Selected.HrefPath }}">Move</a>
-							<a class="btn btn-sm btn-primary" href="delete{{ .Selected.HrefPath }}">Delete</a>
+							<a class="btn btn-sm btn-primary" href="rename{{ .Selected.Location }}">Rename</a>
+							<a class="btn btn-sm btn-primary" href="move{{ .Selected.Location }}">Move</a>
+							<a class="btn btn-sm btn-primary" href="delete{{ .Selected.Location }}">Delete</a>
 						{{ end }}
 						{{ if CanAdmin .User .Selected }}
-							<a class="btn btn-sm btn-primary" href="access{{ .Selected.HrefPath }}">Access rules</a>
+							<a class="btn btn-sm btn-primary" href="access{{ .Selected.Location }}">Access rules</a>
 						{{ end }}
 					</td>
 				</tr>
@@ -62,7 +62,7 @@ var chooseTmpl = tmpl(`{{ Breadcrumbs .Selected false }}
 					<tr>
 						<td>{{ $.WorkflowIndicator . }} </td>
 						<td>
-							<a class="btn btn-sm btn-secondary" href="choose/1{{ $.Selected.HrefPath }}/{{ .Slug }}">{{ .Slug }}</a>
+							<a class="btn btn-sm btn-secondary" href="choose/1{{ $.Selected.Location }}/{{ .Slug }}">{{ .Slug }}</a>
 						</td>
 						<td>{{ .ClassName }}</td>
 						<td>{{ .Id }}</td>
@@ -105,7 +105,7 @@ func (data *chooseData) PageLinks() []template.HTML {
 		data.page,
 		pagesTotal,
 		func(page int, name string) string {
-			return fmt.Sprintf(`<li class="page-item"><a class="page-link" href="choose/%d%s">%s</a></li>`, page, data.Selected.HrefPath(), name)
+			return fmt.Sprintf(`<li class="page-item"><a class="page-link" href="choose/%d%s">%s</a></li>`, page, data.Selected.Location(), name)
 		},
 		func(page int, name string) string {
 			return fmt.Sprintf(`<li class="page-item active"><span class="page-link">%d</span></li>`, page)

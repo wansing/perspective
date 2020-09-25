@@ -8,10 +8,10 @@ import (
 	"github.com/wansing/perspective/core"
 )
 
-var setClassTmpl = tmpl(`<h1>Set class of {{ .Selected.HrefPath }}</h1>
+var setClassTmpl = tmpl(`<h1>Set class of {{ .Selected.Location }}</h1>
 
 		<p>
-			<a class="btn btn-secondary" href="choose/1{{ .Selected.HrefPath }}">Cancel</a>
+			<a class="btn btn-secondary" href="choose/1{{ .Selected.Location }}">Cancel</a>
 		</p>
 
 		<form method="post">
@@ -56,7 +56,7 @@ func setClass(w http.ResponseWriter, req *http.Request, r *Route, params httprou
 	if req.Method == http.MethodPost {
 		newClass = req.PostFormValue("class")
 		if err = r.db.SetClass(selected, newClass); err == nil {
-			r.SeeOther("/choose/1%s", selected.HrefPath())
+			r.SeeOther("/choose/1%s", selected.Location())
 			return nil
 		} else {
 			r.Danger(err)

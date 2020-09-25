@@ -9,23 +9,33 @@ import (
 	"github.com/wansing/perspective/core"
 )
 
-func Breadcrumbs(e *core.Node, linkLast bool) template.HTML {
+func Breadcrumbs(node *core.Node, linkLast bool) template.HTML {
+
+	var nodes = []*core.Node{}
+	for n := node; n != nil; n = n.Parent {
+		nodes = append(nodes, n)
+	}
+
+	// reverse
+	for i := len(nodes)/2 - 1; i >= 0; i-- {
+		opp := len(nodes) - 1 - i
+		nodes[i], nodes[opp] = nodes[opp], nodes[i]
+	}
 
 	var buf = &bytes.Buffer{}
-
 	buf.WriteString(`<nav aria-label="breadcrumb" style="margin-top: 1rem;"><ol class="breadcrumb">`)
 
-	for i := e.Root(); i != e.Next; i = i.Next {
-		var isLast = (i == e)
+	for _, n := range nodes {
+		var isLast = n == node
 		buf.WriteString(`<li class="breadcrumb-item`)
 		if isLast {
 			buf.WriteString(` active`)
 		}
 		buf.WriteString(`">`)
 		if !isLast || linkLast {
-			buf.WriteString(`<a href="choose/1` + i.HrefPath() + `">`)
+			buf.WriteString(`<a href="choose/1` + n.Location() + `">`)
 		}
-		buf.WriteString(i.Slug())
+		buf.WriteString(n.Slug())
 		if !isLast || linkLast {
 			buf.WriteString(`</a>`)
 		}
@@ -53,13 +63,13 @@ func FormatTs(ts int64) string {
 }
 
 // SelectChildClass writes one or two optgroup tags.
-func SelectChildClass(reg core.ClassRegistry, e *core.Node, selectedCode string) template.HTML {
+func SelectChildClass(reg core.ClassRegistry, n *core.Node, selectedCode string) template.HTML {
 
 	w := &bytes.Buffer{}
 
-	if e != nil && len(e.Class.FeaturedChildClasses) > 0 {
+	if n != nil && len(n.Class.FeaturedChildClasses) > 0 {
 		w.WriteString(`<optgroup label="Featured">`)
-		for _, code := range e.Class.FeaturedChildClasses {
+		for _, code := range n.Class.FeaturedChildClasses {
 			optionClass(reg, w, code, selectedCode)
 		}
 		w.WriteString(`</optgroup>`)

@@ -73,7 +73,7 @@ func (t *Raw) Do(r *core.Route) error {
 	for _, lt := range localTemplates {
 		buf := &bytes.Buffer{}
 		if err := lt.Execute(buf, r); err != nil { // recursion is done here
-			return fmt.Errorf("%s: %v", r.Node.HrefPath(), err)
+			return fmt.Errorf("%s: %v", r.Node.Location(), err)
 		}
 		r.Set(lt.Name(), buf.String())
 	}

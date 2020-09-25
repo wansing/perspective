@@ -3,22 +3,23 @@ package backend
 import (
 	"errors"
 	"net/http"
+	"path"
 
 	"github.com/julienschmidt/httprouter"
 	"github.com/wansing/perspective/core"
 )
 
-var moveTmpl = tmpl(`<h1>Move {{ .Selected.HrefPath }}</h1>
+var moveTmpl = tmpl(`<h1>Move {{ .Selected.Location }}</h1>
 
 	<p>
-		<a class="btn btn-secondary" href="choose/1{{ .Selected.HrefPath }}">Cancel</a>
+		<a class="btn btn-secondary" href="choose/1{{ .Selected.Location }}">Cancel</a>
 	</p>
 
 	<form method="post">
 		<div class="form-group row">
 			<label class="col-sm-2 col-form-label">Current location</label>
 			<div class="col-sm-10">
-				<input class="form-control-plaintext" readonly value="{{ .Selected.Parent.HrefPath }}">
+				<input class="form-control-plaintext" readonly value="{{ .Selected.Parent.Location }}">
 			</div>
 		</div>
 		<div class="form-group row">
@@ -59,15 +60,18 @@ func move(w http.ResponseWriter, req *http.Request, r *Route, params httprouter.
 		return err
 	}
 
-	var parentUrl = selected.Parent.HrefPath() // default value
+	var parentUrl = selected.Parent.Location() // default value
 
 	// move
 
 	if req.Method == http.MethodPost {
 
 		parentUrl = req.PostFormValue("parentUrl")
+		if !path.IsAbs(parentUrl) {
+			parentUrl = path.Join(selected.Location(), parentUrl)
+		}
 
-		newParent, err := r.Open(selected.MakeAbsolute(parentUrl))
+		newParent, err := r.Open(parentUrl)
 		if err != nil {
 			return err
 		}
@@ -79,7 +83,7 @@ func move(w http.ResponseWriter, req *http.Request, r *Route, params httprouter.
 		}
 
 		if err = r.db.SetParent(selected, newParent); err == nil {
-			r.SeeOther("/choose/1%s", selected.HrefPath())
+			r.SeeOther("/choose/1%s", selected.Location())
 			return nil
 		} else {
 			r.Danger(err)

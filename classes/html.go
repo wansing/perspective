@@ -40,7 +40,7 @@ type HTML struct {
 // Now instead, HTML rewriting must take care not to modify template instructions.
 func (t *HTML) Do(r *core.Route) error {
 
-	rewritten, err := rewriteHTML(r.Node, strings.NewReader(r.Content()))
+	rewritten, err := rewriteHTML(r.Request.Path, r.Node, strings.NewReader(r.Content()))
 	if err != nil {
 		return err
 	}
@@ -49,7 +49,7 @@ func (t *HTML) Do(r *core.Route) error {
 	return t.Raw.Do(r)
 }
 
-func rewriteHTML(node *core.Node, input io.Reader) (string, error) {
+func rewriteHTML(reqPath string, node *core.Node, input io.Reader) (string, error) {
 
 	domtree, err := util.CreateDomTree(input)
 	if err != nil {
@@ -170,7 +170,7 @@ func rewriteHTML(node *core.Node, input io.Reader) (string, error) {
 				//
 				// hrefs shall be relative to the containing impression (not to the current leaf), so we must make them absolute
 				//
-				// See path.Clean for path guidelines. HrefView must comply with them.
+				// See path.Clean for path guidelines. Link() must comply with them.
 
 				u.Path = strings.TrimSpace(u.Path)
 
@@ -178,14 +178,14 @@ func rewriteHTML(node *core.Node, input io.Reader) (string, error) {
 				case "":
 					if u.Fragment == "" { // don't touch href="#foo"
 						if domNode.FirstChild != nil {
-							u.Path = path.Join(node.HrefView(), core.NormalizeSlug(domNode.FirstChild.Data)) // href from content
+							u.Path = path.Join(node.Link(), core.NormalizeSlug(domNode.FirstChild.Data)) // href from content
 						}
 					}
 				case ".":
-					u.Path = node.HrefView() // href to impression which contains it
+					u.Path = node.Link() // href to impression which contains it
 				default:
-					if u.Path[0] != '/' { // don't touch absolute href
-						u.Path = path.Join(node.HrefView(), u.Path) // make path absolute
+					if !path.IsAbs(u.Path) { // don't touch absolute href
+						u.Path = path.Join(node.Link(), u.Path) // make path absolute
 					}
 				}
 
@@ -193,39 +193,19 @@ func rewriteHTML(node *core.Node, input io.Reader) (string, error) {
 
 				// Determine if the link is active
 				//
-				// # Example leaf "/foo/bar"
-				//
-				// ## Active paths
-				//
-				// * /foo
-				// * /foo/bar
-				//
-				// ## Non-active paths
-				//
-				// * / (because it would be always active)
-				// * /foo/bar/baz
-				// * /foo/other
-				//
-				// # Conclusion
-				//
-				// path must be a prefix of leaf
-				//
-				// # Example leaf "/"
-				//
-				// ## Active paths
-				//
-				// * /
+				// Example request: "/foo/bar"
+				// Active hrefs: "/foo", "/foo/bar"
+				// Inactive hrefs: "/" (because it would be always active), "/foo/bar/baz", "/foo/other"
+				// Assumption:
+				// - href is active iff it is a prefix of request
+				// - except route "/", which is active for href "/" only
 
-				leaf := node.Leaf().HrefView()
-
-				active := strings.HasPrefix(leaf, u.Path)
+				active := strings.HasPrefix(reqPath, u.Path)
 
 				// stricter rule for root node
 
-				root := node.Root().HrefView()
-
-				if active && u.Path == root {
-					active = leaf == root
+				if active && u.Path == "/" {
+					active = reqPath == "/"
 				}
 
 				if active {

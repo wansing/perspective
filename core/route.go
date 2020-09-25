@@ -7,9 +7,8 @@ import (
 	"html/template"
 	"log"
 	"net/http"
+	"path"
 	"runtime/debug"
-
-	"github.com/wansing/perspective/util"
 )
 
 const RootId = 1        // id of the root node
@@ -26,19 +25,17 @@ var ErrNotFound = errors.New("not found")
 type Route struct {
 	*Queue
 	*Request
-	*Node                       // current, it's easier for template execution to have it all in one place
-	DBVersion                   // current, it's easier for template execution to have it all in one place
-	Vars      map[string]string // results of template execution
-	VarDepth  map[string]int    // must be stored for each var separately
+	*Node                        // current node
+	*Version                     // version of current node
+	Recursed map[int]interface{} // avoids double recursion
+	RootUrl  string              // "/" for main route, "/" or include base for included routes, TODO use it
+	Vars     map[string]string   // node output
+	VarDepth map[string]int      // must be stored for each var separately
 }
 
 // RouteFromContext gets a Route from the given context. It can panic.
 func RouteFromContext(ctx context.Context) *Route {
 	return ctx.Value(routeContextKey{}).(*Route)
-}
-
-func (r *Route) SetContent(content string) {
-	r.DBVersion = VersionWrapContent{r.DBVersion, content}
 }
 
 // T returns the instance of the current node.
@@ -48,24 +45,26 @@ func (r *Route) T() interface{} {
 
 // Example: {{ .Include "/stuff" "footer" "body" }}
 //
-// basePath can be "."
-func (r *Route) Include(basePath, command, varName string) (template.HTML, error) {
-	basePath = r.Node.MakeAbsolute(basePath)
-	var v, err = r.include(basePath, command, varName)
+// baseLocation can be "."
+func (r *Route) Include(baseLocation, command, varName string) (template.HTML, error) {
+	if !path.IsAbs(baseLocation) {
+		baseLocation = path.Join(r.Node.Location(), baseLocation)
+	}
+	var v, err = r.include(baseLocation, command, varName)
 	return template.HTML(v), err
 }
 
-func (r *Route) include(basePath, command, varName string) (string, error) {
+func (r *Route) include(baseLocation, command, varName string) (string, error) {
 
 	if r.includes == nil { // in dummy requests
 		return "", nil
 	}
 
-	if _, ok := r.includes[basePath][command]; !ok {
+	if _, ok := r.includes[baseLocation][command]; !ok {
 
 		// base
 
-		base, err := r.Open(basePath) // returns the leaf
+		base, err := r.Open(baseLocation) // returns the leaf
 		if err != nil {
 			return "", err
 		}
@@ -81,20 +80,20 @@ func (r *Route) include(basePath, command, varName string) (string, error) {
 			Queue:   NewQueue(command),
 		}
 
-		if err = includeRoute.pop(base, nil); err != nil {
+		if err = includeRoute.pop(base); err != nil {
 			return "", err
 		}
 
 		// cache vars
 
-		if _, ok := r.includes[basePath]; !ok {
-			r.includes[basePath] = make(map[string]map[string]string)
+		if _, ok := r.includes[baseLocation]; !ok {
+			r.includes[baseLocation] = make(map[string]map[string]string)
 		}
 
-		r.includes[basePath][command] = includeRoute.Vars
+		r.includes[baseLocation][command] = includeRoute.Vars
 	}
 
-	if v, ok := r.includes[basePath][command][varName]; ok {
+	if v, ok := r.includes[baseLocation][command][varName]; ok {
 		return v, nil
 	} else {
 		return "", fmt.Errorf("including %s: var %s %w", command, varName, ErrNotFound)
@@ -122,14 +121,25 @@ func (r *Route) IncludeChildBody(command string) (template.HTML, error) {
 //
 // Because Recurse can be called in a template, r.Node must be set.
 func (r *Route) Recurse() error {
-	return r.pop(r.Node, r.Node)
+	return r.pop(r.Node)
 }
 
-// idempotent if prev != nil
-func (r *Route) pop(parent, prev *Node) error {
+func (r *Route) pop(parent *Node) error {
+
+	// make this function idempotent
+
+	if r.Recursed == nil {
+		r.Recursed = make(map[int]interface{})
+	}
+
+	if _, ok := r.Recursed[parent.Id()]; ok {
+		return nil // already done
+	}
+	r.Recursed[parent.Id()] = struct{}{}
 
 	// When the template engine recovers from a panic, it displays an 404 error and logs the panic message.
-	// This approach displays the panic message and logs a stack trace.
+	// This displays the panic message and logs a stack trace.
+
 	defer func() {
 		if val := recover(); val != nil {
 			r.Set("body", fmt.Sprintf("<pre>%s</pre>", val))
@@ -142,37 +152,30 @@ func (r *Route) pop(parent, prev *Node) error {
 		return fmt.Errorf("watchdog reached %d", r.watchdog)
 	}
 
-	if prev != nil && prev.Next != nil {
-		// pop has already been called
-		return nil
-	}
-
-	if r.Queue.Len() == 0 {
-		return nil
-	}
-
 	// get node
 
-	var parentId = 0 // default parent id is always zero because Node.Parent refers to the tree hierarchy
-	if parent != nil {
-		parentId = parent.Id()
-	}
+	var n *Node
+	var err error
 
-	var slug = (*r.Queue)[0].Key
-	var versionNo = (*r.Queue)[0].Version
-	(*r.Queue) = (*r.Queue)[1:]
-
-	n, err := r.Request.db.GetNodeBySlug(parent, slug)
-	if err != nil {
-		return fmt.Errorf("pop (%d, %s): %w", parentId, slug, err) // %w wraps err
+	if r.Queue.Len() == 0 {
+		// try default
+		n, err = r.Request.db.GetNodeBySlug(parent, "default")
+		if err != nil {
+			return nil // no problem, it was just a try
+		}
+	} else {
+		var slug, _ = r.Queue.Pop()
+		n, err = r.Request.db.GetNodeBySlug(parent, slug)
+		if err != nil {
+			// resort to default
+			n, err = r.Request.db.GetNodeBySlug(parent, "default")
+			if err != nil {
+				return fmt.Errorf("pop (%d, %s): %w", parent.Id(), slug, err) // neither slug nor default were found
+			}
+		}
 	}
 
 	n.Parent = parent
-	n.Prev = prev
-
-	if prev != nil {
-		prev.Next = n
-	}
 
 	// check permission
 
@@ -182,29 +185,25 @@ func (r *Route) pop(parent, prev *Node) error {
 
 	// get version
 
-	if versionNo == DefaultVersion {
-		versionNo = n.MaxWGZeroVersionNo()
-	}
-
-	v, err := n.GetVersion(versionNo)
+	v, err := n.GetVersion(n.MaxWGZeroVersionNo()) // could use specific version for preview
 	if err != nil {
 		return err
 	}
 
-	// backup and store things in Route
+	// setup context
 
-	defer func(oldNode *Node, oldVersion DBVersion) {
+	defer func(oldNode *Node, oldVersion *Version) {
 		r.Node = oldNode
-		r.DBVersion = oldVersion
-	}(r.Node, r.DBVersion)
+		r.Version = oldVersion
+	}(r.Node, r.Version)
 
 	r.Node = n
-	r.DBVersion = v
+	r.Version = v
 
 	// run class code
 
 	if err := n.Do(r); err != nil {
-		return err
+		r.Danger(err)
 	}
 
 	return nil
@@ -245,31 +244,4 @@ func (r *Route) Set(name, value string) {
 		r.Vars[name] = value
 		r.VarDepth[name] = r.Node.Depth()
 	}
-}
-
-// MakeIncludeOnly returns an error if the current node is in the main route.
-// The effect is that the node can only be used as an include,
-// but not be viewed directly.
-func (r *Route) MakeIncludeOnly() (interface{}, error) {
-	if r.Node.Root().Id() == RootId {
-		return nil, ErrNotFound
-	}
-	return nil, nil
-}
-
-// Tags applies one or more tags to the current node.
-func (r *Route) Tag(tags ...string) interface{} {
-	r.Node.Tags = append(r.Node.Tags, tags...)
-	return nil
-}
-
-// Ts applies one or more timestamps to the current node.
-// Arguments are parsed with util.ParseTime.
-func (r *Route) Ts(dates ...string) interface{} {
-	for _, dateStr := range dates {
-		if ts, err := util.ParseTime(dateStr); err == nil {
-			r.Node.Timestamps = append(r.Node.Timestamps, ts)
-		}
-	}
-	return nil
 }

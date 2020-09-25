@@ -28,7 +28,7 @@ type Workflow struct {
 	groupsLoaded bool
 }
 
-// Groups shadows Workflow.DBWorkflow.Groups.
+// Groups shadows DBWorkflow.Groups.
 func (w *Workflow) Groups() ([]DBGroup, error) {
 
 	if !w.groupsLoaded {

@@ -66,21 +66,17 @@ func (NoVersion) WorkflowGroupId() int {
 	return 0
 }
 
+// Node is independent from Route.
 type Node struct {
 	DBNode
 	Instance
-	Class      *Class
-	Parent     *Node // parent in node hierarchy, required for permission checking, nil if node is root
-	Prev       *Node // predecessor in route, nil if node is root (or included, which makes it the root of a route)
-	Next       *Node // successor in route, nil if node is leaf
-	Tags       []string
-	Timestamps []int64
+	Class  *Class
+	Parent *Node // parent in node hierarchy or nil, required for permission checking
 
-	db     *CoreDB
-	pushed bool // whether the slug of this node had been pushed to the queue
+	db *CoreDB // TODO omit
 }
 
-// NewNode creates a Node. You must set Prev and Next on your own.
+// NewNode creates a Node.
 func (c *CoreDB) NewNode(parent *Node, dbNode DBNode) *Node {
 
 	var n = &Node{}
@@ -105,20 +101,12 @@ func (c *CoreDB) NewNode(parent *Node, dbNode DBNode) *Node {
 	return n
 }
 
-func (n *Node) GetLatestVersion() (DBVersion, error) {
-	return n.db.GetVersion(n.Id(), n.MaxVersionNo())
-}
-
-func (n *Node) GetReleasedVersion() (DBVersion, error) {
-	return n.db.GetVersion(n.Id(), n.MaxWGZeroVersionNo())
-}
-
-func (n *Node) GetVersion(versionNo int) (DBVersion, error) {
+func (n *Node) GetVersion(versionNo int) (*Version, error) {
 	v, err := n.db.GetVersion(n.Id(), versionNo)
 	if err != nil {
-		err = fmt.Errorf("version %d of node %d: %w", versionNo, n.Id(), err)
+		return nil, fmt.Errorf("version %d of node %d: %w", versionNo, n.Id(), err)
 	}
-	return v, err
+	return NewVersion(v), nil
 }
 
 func (n *Node) CountChildren() (int, error) {
@@ -133,33 +121,9 @@ func (n *Node) Depth() int {
 	var depth = 0
 	for n != nil {
 		depth++
-		n = n.Prev
+		n = n.Parent
 	}
 	return depth
-}
-
-// Leaf returns the last node of the relation which is created by Node.Next.
-//
-// It won't work properly when called before Recurse.
-func (n *Node) Leaf() *Node {
-	if n != nil {
-		for n.Next != nil {
-			n = n.Next
-		}
-	}
-	return n
-}
-
-// Root returns the last node of the relation which is created by Node.Prev.
-//
-// It returns the root of a route, not the root of the tree.
-func (n *Node) Root() *Node {
-	if n != nil {
-		for n.Prev != nil {
-			n = n.Prev
-		}
-	}
-	return n
 }
 
 // Id shadows DBNode.Id. If the receiver is nil, it returns zero.
@@ -263,10 +227,6 @@ func (n *Node) GetWorkflow() (*Workflow, error) {
 // Folder returns the upload.Folder which stores uploaded files for the node.
 func (n *Node) Folder() upload.Folder {
 	return n.db.Uploads.Folder(n.Id())
-}
-
-func (n *Node) IsPushed() bool {
-	return n.pushed
 }
 
 func (n *Node) HMAC(nodeId int, filename string, w int, h int, ts int64) string {

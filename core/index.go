@@ -11,7 +11,7 @@ type IndexDB interface {
 // SetTags calls IndexDB.SetTags using n.ParentId(), n.Id() and n.TsChanged().
 // Ensure that you set tsChanged before.
 func (n *Node) SetTags(tags []string) error {
-	v, err := n.GetReleasedVersion()
+	v, err := n.GetVersion(n.MaxWGZeroVersionNo())
 	if err != nil {
 		return err
 	}

@@ -308,10 +308,6 @@ func listen(db *core.CoreDB, addr string, base string) {
 
 	handleStrip(base+"/assets", http.FileServer(assets))
 	handleStrip(base+"/backend", backend.NewBackendRouter(db, base))
-	// backend challenge:
-	// relative a-hrefs are prefixed through <base>
-	// absolute http redirects are prefixed through handleStrip and prefixedResponseWriter
-	// form-actions are not prefixed by anything
 	handleStrip(base+"/static", http.FileServer(http.Dir("static")))
 	handleStrip(base+"/upload", db.Uploads)
 

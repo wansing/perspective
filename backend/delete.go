@@ -8,10 +8,10 @@ import (
 	"github.com/wansing/perspective/core"
 )
 
-var deleteTmpl = tmpl(`<h1>Delete {{ .Selected.HrefPath }}</h1>
+var deleteTmpl = tmpl(`<h1>Delete {{ .Selected.Location }}</h1>
 
 	<p>
-		<a class="btn btn-secondary" href="choose/1{{ .Selected.HrefPath }}">Cancel</a>
+		<a class="btn btn-secondary" href="choose/1{{ .Selected.Location }}">Cancel</a>
 	</p>
 
 	<form method="post">
@@ -44,7 +44,7 @@ func del(w http.ResponseWriter, req *http.Request, r *Route, params httprouter.P
 
 	if req.PostFormValue("delete") != "" {
 		if err := r.db.DeleteNode(selected); err == nil {
-			r.SeeOther("/choose/1%s", selected.Parent.HrefPath())
+			r.SeeOther("/choose/1%s", selected.Parent.Location())
 			return nil
 		} else {
 			r.Danger(err)

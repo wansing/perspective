@@ -1,3 +1,5 @@
+//+build ignore
+
 package classes
 
 // TODO rss/atom feed with pagination https://stackoverflow.com/questions/1301392/pagination-in-feeds-like-atom-and-rss
@@ -43,7 +45,7 @@ func init() {
 			{{template "metadata" .T.Next}}
 			{{.Get "body"}}
 			<div class="blog-blogentry-back">
-				<a onclick="javascript:window.history.back(); return false;" href="{{.HrefView}}">Zurück</a>
+				<a onclick="javascript:window.history.back(); return false;" href="{{.Link}}">Zurück</a>
 			</div>
 		{{else}}
 			{{range .T.Children}}
@@ -53,7 +55,7 @@ func init() {
 						{{.Body}}
 						{{if .Cut}}
 							<p class="blog-blogentry-more">
-								<a href="{{.HrefView}}">{{$.T.ReadMore}}</a>
+								<a href="{{.Link}}">{{$.T.ReadMore}}</a>
 							</p>
 						{{end}}
 					</div>
@@ -122,7 +124,7 @@ func (t *Blog) Do(r *core.Route) error {
 		if t.page == 1 {
 			r.Set(
 				"head",
-				fmt.Sprintf(`<link rel="canonical" href="%s" />%s`, r.Node.HrefView(), r.Get("head")),
+				fmt.Sprintf(`<link rel="canonical" href="%s" />%s`, r.Node.Link(), r.Get("head")),
 			)
 		}
 	}
@@ -196,7 +198,7 @@ func (t *Blog) Do(r *core.Route) error {
 			bodyBytes, err := ioutil.ReadAll(
 				util.AnchorHeading(
 					strings.NewReader(body),
-					fmt.Sprintf(`<a href="%s" class="%s" id="%s">`, child.HrefView(), "blog-blogentry-headline", child.Slug()),
+					fmt.Sprintf(`<a href="%s" class="%s" id="%s">`, child.Link(), "blog-blogentry-headline", child.Slug()),
 				),
 			)
 			if err != nil {
@@ -218,7 +220,7 @@ func (t *Blog) Do(r *core.Route) error {
 		t.page,
 		t.pages,
 		func(page int, name string) string {
-			return `<a href="` + r.Node.HrefView() + `/page/` + strconv.Itoa(page) + `">` + name + `</a>`
+			return `<a href="` + r.Node.Link() + `/page/` + strconv.Itoa(page) + `">` + name + `</a>`
 		},
 		func(page int, name string) string {
 			return `<span>` + strconv.Itoa(page) + `</span>`

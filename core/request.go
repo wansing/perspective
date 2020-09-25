@@ -40,6 +40,7 @@ var monthNamesDe = strings.NewReplacer(
 // A Request is created by CoreDB.NewRequest.
 type Request struct {
 	db   *CoreDB // unexported, so templates can't access it
+	Path string  // absolute, without trailing slash
 	User DBUser
 
 	// http
@@ -48,7 +49,7 @@ type Request struct {
 
 	// content
 	globals   map[string]string                       // must be writable by includes, so they can require js/css libraries
-	includes  map[string]map[string]map[string]string // base path => command => resultName => value
+	includes  map[string]map[string]map[string]string // base location => command => resultName => value
 	Templates map[string]*template.Template           // global templates
 
 	// robustness
@@ -81,6 +82,8 @@ func (c *CoreDB) NewRequest(w http.ResponseWriter, httpreq *http.Request) *Reque
 		}
 		// ignore errors
 	}
+
+	req.Path = "/" + strings.Trim(httpreq.URL.Path, "/")
 
 	return req
 }
@@ -171,10 +174,9 @@ func (req *Request) Logout() {
 	req.Cleanup()
 }
 
-// Open calls CoreDB.Open and returns the leaf.
+// Open calls CoreDB.Open.
 func (req *Request) Open(path string) (*Node, error) {
-	root, err := req.db.Open(req.User, nil, NewQueue(path))
-	return root.Leaf(), err
+	return req.db.Open(req.User, nil, NewQueue(path))
 }
 
 // GetGlobal returns the value of a global variable.

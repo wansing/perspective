@@ -8,17 +8,17 @@ import (
 	"github.com/wansing/perspective/core"
 )
 
-var renameTmpl = tmpl(`<h1>Rename {{ .Selected.HrefPath }}</h1>
+var renameTmpl = tmpl(`<h1>Rename {{ .Selected.Location }}</h1>
 
 		<p>
-			<a class="btn btn-secondary" href="choose/1{{ .Selected.HrefPath }}">Cancel</a>
+			<a class="btn btn-secondary" href="choose/1{{ .Selected.Location }}">Cancel</a>
 		</p>
 
 		<form method="post">
 			<div class="form-group row">
 				<label class="col-sm-2 col-form-label">Location</label>
 				<div class="col-sm-10">
-					<input class="form-control-plaintext" readonly value="{{ .Selected.Parent.HrefPath }}">
+					<input class="form-control-plaintext" readonly value="{{ .Selected.Parent.Location }}">
 				</div>
 			</div>
 			<div class="form-group row">
@@ -68,7 +68,7 @@ func rename(w http.ResponseWriter, req *http.Request, r *Route, params httproute
 		newSlug = req.PostFormValue("slug")
 
 		if err = r.db.SetSlug(selected, newSlug); err == nil {
-			r.SeeOther("/choose/1%s", selected.HrefPath())
+			r.SeeOther("/choose/1%s", selected.Location()) // TODO SetSlug didn't update selected, we're redirected to the old location
 			return nil
 		} else {
 			r.Danger(err)

@@ -12,10 +12,10 @@ import (
 	"github.com/wansing/perspective/core"
 )
 
-var accessTmpl = tmpl(`<h1>Access Rules of {{ .Selected.HrefPath }}</h1>
+var accessTmpl = tmpl(`<h1>Access Rules of {{ .Selected.Location }}</h1>
 
 	<p>
-		<a class="btn btn-secondary" href="choose/1{{ .Selected.HrefPath }}">Cancel</a>
+		<a class="btn btn-secondary" href="choose/1{{ .Selected.Location }}">Cancel</a>
 	</p>
 
 	<form method="post">
@@ -245,7 +245,7 @@ func access(w http.ResponseWriter, req *http.Request, r *Route, params httproute
 			}
 		}
 
-		r.SeeOther("/access%s", selected.HrefPath())
+		r.SeeOther("/access%s", selected.Location())
 		return nil
 	}
 
