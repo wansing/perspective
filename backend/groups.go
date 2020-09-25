@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/julienschmidt/httprouter"
-	"github.com/wansing/perspective/auth"
+	"github.com/wansing/perspective/core"
 )
 
 var groupsTmpl = tmpl(`<h1>Groups</h1>
@@ -30,8 +30,8 @@ type groupsData struct {
 	*Route
 }
 
-func (data *groupsData) Groups() ([]auth.Group, error) {
-	return data.db.Auth.GetAllGroups(10000, 0) // assuming there are not more than 10k groups
+func (data *groupsData) Groups() ([]core.DBGroup, error) {
+	return data.db.GetAllGroups(10000, 0) // assuming there are not more than 10k groups
 }
 
 func groups(w http.ResponseWriter, req *http.Request, r *Route, params httprouter.Params) error {
@@ -48,7 +48,7 @@ func groups(w http.ResponseWriter, req *http.Request, r *Route, params httproute
 			return errors.New("missing name")
 		}
 
-		if err := r.db.Auth.InsertGroup(newGroupName); err != nil {
+		if err := r.db.InsertGroup(newGroupName); err != nil {
 			return err
 		}
 

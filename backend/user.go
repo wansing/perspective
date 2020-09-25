@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/julienschmidt/httprouter"
-	"github.com/wansing/perspective/auth"
+	"github.com/wansing/perspective/core"
 )
 
 var userTmpl = tmpl(`<h1>User &raquo;{{ .Selected.Name }}&laquo;</h1>
@@ -53,11 +53,11 @@ var userTmpl = tmpl(`<h1>User &raquo;{{ .Selected.Name }}&laquo;</h1>
 
 type userData struct {
 	*Route
-	Selected auth.User
+	Selected core.DBUser
 }
 
-func (data *userData) Groups() ([]auth.Group, error) {
-	return data.db.Auth.GetGroupsOf(data.Selected)
+func (data *userData) Groups() ([]core.DBGroup, error) {
+	return data.db.GetGroupsOf(data.Selected)
 }
 
 func user(w http.ResponseWriter, req *http.Request, r *Route, params httprouter.Params) error {
@@ -67,7 +67,7 @@ func user(w http.ResponseWriter, req *http.Request, r *Route, params httprouter.
 		return err
 	}
 
-	selected, err := r.db.Auth.GetUser(selectedId)
+	selected, err := r.db.GetUser(selectedId)
 	if err != nil {
 		return err
 	}
@@ -89,7 +89,7 @@ func user(w http.ResponseWriter, req *http.Request, r *Route, params httprouter.
 			return errors.New("new password is empty") // we could use zxcvbn instead, or leave it to the UserDB
 		}
 
-		if err = r.db.Auth.UserDB.ChangePassword(selected, req.PostFormValue("old"), new1); err != nil {
+		if err = r.db.ChangePassword(selected, req.PostFormValue("old"), new1); err != nil {
 			return err
 		}
 

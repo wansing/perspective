@@ -1,16 +1,39 @@
 package core
 
 import (
-	"github.com/wansing/perspective/auth"
+	"errors"
 )
 
-type User struct {
-	auth.User
+type DBUser interface {
+	Id() int
+	Name() string // can be email address
+}
+
+type UserDB interface {
+	ChangePassword(u DBUser, old, new string) error
+	Delete(u DBUser) error
+	GetUser(id int) (DBUser, error)
+	GetUserByName(name string) (DBUser, error)
+	GetAllUsers(limit, offset int) ([]DBUser, error)
+	InsertUser(name string) (DBUser, error)
+	LoginUser(name, password string) (DBUser, error)
+	SetPassword(u DBUser, password string) error
+	Writeable() bool
+}
+
+var ErrEmptyPassword = errors.New("refusing to set empty password")
+
+// shadows UserDB.SetPassword
+func (c *CoreDB) SetPassword(u DBUser, password string) error {
+	if password == "" {
+		return ErrEmptyPassword
+	}
+	return c.UserDB.SetPassword(u, password)
 }
 
 // RequirePermission returns an error if the given user does not have the given permission on the node.
-func (u *User) RequirePermission(perm Permission, n *Node) error {
-	return u.requirePermission(perm, n, nil)
+func (n *Node) RequirePermission(perm Permission, u DBUser) error {
+	return n.requirePermission(perm, u, nil)
 }
 
 // RequirePermissionRules returns all access rules under which the given user has the given permission on the node:
@@ -21,15 +44,15 @@ func (u *User) RequirePermission(perm Permission, n *Node) error {
 //
 // Edit permission implies read permission, but edit permission is modeled through workflows and not through rules.
 // Thus the function may return (nil, nil).
-func (u *User) RequirePermissionRules(perm Permission, n *Node) (map[int]map[int]interface{}, error) {
+func (n *Node) RequirePermissionRules(perm Permission, u DBUser) (map[int]map[int]interface{}, error) {
 	rules := make(map[int]map[int]interface{})
-	return rules, u.requirePermission(perm, n, &rules)
+	return rules, n.requirePermission(perm, u, &rules)
 }
 
 // requirePermission calls requirePermissionRecursive. On failure, it makes use of the convention that "edit" implies "read".
-func (u *User) requirePermission(perm Permission, n *Node, permittingRules *map[int]map[int]interface{}) error {
+func (n *Node) requirePermission(perm Permission, u DBUser, permittingRules *map[int]map[int]interface{}) error {
 
-	if err := u.requirePermissionRecursive(perm, n, permittingRules); err == nil {
+	if err := n.requirePermissionRecursive(perm, u, permittingRules); err == nil {
 		return nil
 	}
 
@@ -61,7 +84,7 @@ func (u *User) requirePermission(perm Permission, n *Node, permittingRules *map[
 	return ErrUnauthorized
 }
 
-func (u *User) requirePermissionRecursive(perm Permission, n *Node, permittingRules *map[int]map[int]interface{}) error {
+func (n *Node) requirePermissionRecursive(perm Permission, u DBUser, permittingRules *map[int]map[int]interface{}) error {
 
 	if n == nil {
 		return ErrUnauthorized
@@ -73,7 +96,7 @@ func (u *User) requirePermissionRecursive(perm Permission, n *Node, permittingRu
 
 	// recursion
 	if n.Parent != nil {
-		if err := u.requirePermissionRecursive(perm, n.Parent, permittingRules); err == nil {
+		if err := n.Parent.requirePermissionRecursive(perm, u, permittingRules); err == nil {
 			return nil
 		}
 	}
@@ -82,10 +105,10 @@ func (u *User) requirePermissionRecursive(perm Permission, n *Node, permittingRu
 }
 
 // ReleaseState returns the ReleaseState which describes the relation between a node, a version and a user.
-func (u *User) ReleaseState(n *Node, v DBVersion) (*auth.ReleaseState, error) {
+func (n *Node) ReleaseState(v DBVersion, u DBUser) (*ReleaseState, error) {
 	var workflow, err = n.GetWorkflow()
 	if err != nil {
 		return nil, err
 	}
-	return auth.GetReleaseState(workflow, v.WorkflowGroupId(), u)
+	return GetReleaseState(workflow, v.WorkflowGroupId(), u)
 }

@@ -53,7 +53,7 @@ func rename(w http.ResponseWriter, req *http.Request, r *Route, params httproute
 
 	// check permission
 
-	if err = r.User.RequirePermission(core.Remove, selected); err != nil {
+	if err = selected.RequirePermission(core.Remove, r.User); err != nil {
 		return err
 	}
 

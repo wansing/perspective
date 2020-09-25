@@ -6,7 +6,7 @@ import (
 	"strconv"
 
 	"github.com/julienschmidt/httprouter"
-	"github.com/wansing/perspective/auth"
+	"github.com/wansing/perspective/core"
 )
 
 var groupTmpl = tmpl(`<h1>Group &raquo;{{ .Selected.Name }}&laquo;</h1>
@@ -32,19 +32,19 @@ var groupTmpl = tmpl(`<h1>Group &raquo;{{ .Selected.Name }}&laquo;</h1>
 
 type groupData struct {
 	*Route
-	Selected auth.Group
+	Selected core.DBGroup
 }
 
-func (data *groupData) Members() ([]auth.User, error) {
+func (data *groupData) Members() ([]core.DBUser, error) {
 
 	var memberIds, err = data.Selected.Members()
 	if err != nil {
 		return nil, err
 	}
 
-	var members = []auth.User{}
+	var members = []core.DBUser{}
 	for memberId := range memberIds { // map: group id -> interface{}
-		member, err := data.db.Auth.GetUser(memberId)
+		member, err := data.db.GetUser(memberId)
 		if err != nil {
 			return nil, err
 		}
@@ -65,7 +65,7 @@ func group(w http.ResponseWriter, req *http.Request, r *Route, params httprouter
 		return err
 	}
 
-	selected, err := r.db.Auth.GetGroup(selectedId)
+	selected, err := r.db.GetGroup(selectedId)
 	if err != nil {
 		return err
 	}
@@ -80,12 +80,12 @@ func group(w http.ResponseWriter, req *http.Request, r *Route, params httprouter
 				return nil
 			}
 
-			user, err := r.db.Auth.GetUser(userId)
+			user, err := r.db.GetUser(userId)
 			if err != nil {
 				return err
 			}
 
-			if err = r.db.Auth.GroupDB.Join(selected, user); err != nil {
+			if err = r.db.GroupDB.Join(selected, user); err != nil {
 				return err
 			}
 

@@ -55,7 +55,7 @@ func move(w http.ResponseWriter, req *http.Request, r *Route, params httprouter.
 		return errors.New("can't move root")
 	}
 
-	if err = r.User.RequirePermission(core.Remove, selected.Parent); err != nil {
+	if err = selected.Parent.RequirePermission(core.Remove, r.User); err != nil {
 		return err
 	}
 
@@ -74,7 +74,7 @@ func move(w http.ResponseWriter, req *http.Request, r *Route, params httprouter.
 
 		// check create permission
 
-		if err = r.User.RequirePermission(core.Create, newParent); err != nil {
+		if err = newParent.RequirePermission(core.Create, r.User); err != nil {
 			return err
 		}
 

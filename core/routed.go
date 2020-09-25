@@ -37,13 +37,13 @@ func (w *responseWriter) WriteHeader(statusCode int) {
 }
 
 // Routed adapts an http.Handler to our system. It should not have child nodes because it passes the whole queue to the handler.
-type Routed struct {
+type Handler struct {
 	Base
 	http.Handler
 }
 
 // Empties the queue, creates an http.Request struct and an http.ResponseWriter, calls Routed.Handler.ServeHTTP and writes the result to the "body" variable.
-func (t *Routed) Do(r *Route) error {
+func (t *Handler) Do(r *Route) error {
 
 	var path = r.Queue.String()
 	r.Queue = nil // clear queue

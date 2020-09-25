@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/julienschmidt/httprouter"
-	"github.com/wansing/perspective/auth"
+	"github.com/wansing/perspective/core"
 )
 
 var workflowsTmpl = tmpl(`<h1>Workflows</h1>
@@ -30,8 +30,8 @@ type workflowsData struct {
 	*Route
 }
 
-func (data *workflowsData) GetAllWorkflows() ([]*auth.Workflow, error) {
-	return data.db.Auth.GetAllWorkflows(1000, 0) // assuming there are not more than 1k workflows
+func (data *workflowsData) GetAllWorkflows() ([]*core.Workflow, error) {
+	return data.db.GetAllWorkflows(1000, 0) // assuming there are not more than 1k workflows
 }
 
 func workflows(w http.ResponseWriter, req *http.Request, r *Route, params httprouter.Params) error {
@@ -48,7 +48,7 @@ func workflows(w http.ResponseWriter, req *http.Request, r *Route, params httpro
 			return errors.New("missing workflow name")
 		}
 
-		if err := r.db.Auth.InsertWorkflow(newWorkflowName); err != nil {
+		if err := r.db.InsertWorkflow(newWorkflowName); err != nil {
 			return err
 		}
 

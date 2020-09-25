@@ -1,7 +1,5 @@
 package core
 
-//import "github.com/wansing/perspective/auth"
-
 // An IndexDB stores timestamps and tags which are defined in node content.
 type IndexDB interface {
 	SetTags(parentId int, nodeId int, nodeTsChanged int64, tags []string) error
@@ -24,15 +22,15 @@ func (n *Node) SetTimestamps(timestamps []int64) error {
 	return n.db.SetTimestamps(n.ParentId(), n.Id(), timestamps)
 }
 
-func (n *Node) RecentChildrenByTag(user *User, now int64, tag string, limit, offset int) ([]*Node, error) {
+func (n *Node) RecentChildrenByTag(user DBUser, now int64, tag string, limit, offset int) ([]*Node, error) {
 	return n.childrenByTag(n.db.RecentChildrenByTag, user, now, tag, limit, offset)
 }
 
-func (n *Node) UpcomingChildrenByTag(user *User, now int64, tag string, limit, offset int) ([]*Node, error) {
+func (n *Node) UpcomingChildrenByTag(user DBUser, now int64, tag string, limit, offset int) ([]*Node, error) {
 	return n.childrenByTag(n.db.UpcomingChildrenByTag, user, now, tag, limit, offset)
 }
 
-func (n *Node) childrenByTag(f func(id int, now int64, tag string, limit, offset int) ([]int, error), user *User, now int64, tag string, limit, offset int) ([]*Node, error) {
+func (n *Node) childrenByTag(f func(id int, now int64, tag string, limit, offset int) ([]int, error), user DBUser, now int64, tag string, limit, offset int) ([]*Node, error) {
 	var nodeIds, err = f(n.Id(), now, tag, limit, offset)
 	if err != nil {
 		return nil, err
@@ -44,7 +42,7 @@ func (n *Node) childrenByTag(f func(id int, now int64, tag string, limit, offset
 			return nil, err
 		}
 		child := n.db.NewNode(n, dbNode)
-		if err := user.RequirePermission(Read, child); err != nil {
+		if err := child.RequirePermission(Read, user); err != nil {
 			continue
 		}
 		nodes = append(nodes, child)

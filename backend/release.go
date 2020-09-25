@@ -27,7 +27,7 @@ func release(w http.ResponseWriter, req *http.Request, r *Route, params httprout
 
 	defer r.SeeOther("/edit/%d%s", versionNo, selected.HrefPath())
 
-	state, err := r.User.ReleaseState(selected, selectedVersion)
+	state, err := selected.ReleaseState(selectedVersion, r.User)
 	if err != nil {
 		return err
 	}

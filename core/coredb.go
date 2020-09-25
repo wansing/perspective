@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/alexedwards/scs/v2"
-	"github.com/wansing/perspective/auth"
 	"github.com/wansing/perspective/filestore"
 	"github.com/wansing/perspective/upload"
 	"github.com/wansing/perspective/util"
@@ -20,10 +19,11 @@ type CoreDB struct {
 	AccessDB
 	ClassRegistry
 	EditorsDB
-	NodeDB
+	GroupDB
 	IndexDB
-
-	Auth           auth.AuthDB
+	NodeDB
+	UserDB
+	WorkflowDB
 	SessionManager *scs.SessionManager
 	Uploads        upload.Store
 
@@ -69,16 +69,16 @@ func (c *CoreDB) Init(sessionStore scs.Store, cookiePath string) error {
 	return nil
 }
 
-// AddAccessRule calls CoreDB.AccessDB.InsertAccessRule.
+// AddAccessRule shadows AccessDB.InsertAccessRule.
 func (c *CoreDB) AddAccessRule(e *Node, groupId int, perm Permission) error {
-	var group, err = c.Auth.GetGroup(groupId)
+	var group, err = c.GroupDB.GetGroup(groupId)
 	if err != nil {
 		return err
 	}
 	return c.AccessDB.InsertAccessRule(e.Id(), group.Id(), int(perm))
 }
 
-// RemoveAccessRule shadows CoreDB.AccessDB.RemoveAccessRule.
+// RemoveAccessRule shadows AccessDB.RemoveAccessRule.
 func (c *CoreDB) RemoveAccessRule(e *Node, groupId int) error {
 	// not checking if the group exists because not a lot can go wrong
 	return c.AccessDB.RemoveAccessRule(e.Id(), groupId)
@@ -94,19 +94,19 @@ func (c *CoreDB) Edit(n *Node, v DBVersion, newContent, newVersionNote, username
 	return nil
 }
 
-// GetAllWorkflowAssignments shadows CoreDB.EditorsDB.GetAllWorkflowAssignments.
-func (c *CoreDB) GetAllWorkflowAssignments() (map[int]map[bool]*auth.Workflow, error) {
+// GetAllWorkflowAssignments shadows EditorsDB.GetAllWorkflowAssignments.
+func (c *CoreDB) GetAllWorkflowAssignments() (map[int]map[bool]*Workflow, error) {
 	var base, err = c.EditorsDB.GetAllWorkflowAssignments()
 	if err != nil {
 		return nil, err
 	}
-	var all = make(map[int]map[bool]*auth.Workflow)
+	var all = make(map[int]map[bool]*Workflow)
 	for nodeId, entry := range base {
 		if _, ok := all[nodeId]; !ok {
-			all[nodeId] = make(map[bool]*auth.Workflow)
+			all[nodeId] = make(map[bool]*Workflow)
 		}
 		for childrenOnly, workflowId := range entry {
-			workflow, err := c.Auth.GetWorkflow(workflowId)
+			workflow, err := c.GetWorkflow(workflowId)
 			if err != nil {
 				return nil, err
 			}
@@ -151,7 +151,7 @@ func (c *CoreDB) internalPathByNodeId(id int, maxDepth int) (string, error) {
 
 // requireRule checks if a node with a given id has a rule which gives permission to the user.
 // If permittingRules is not nil, then it is populated.
-func (c *CoreDB) requireRule(required Permission, nodeId int, u auth.User, permittingRules *map[int]map[int]interface{}) error {
+func (c *CoreDB) requireRule(required Permission, nodeId int, u DBUser, permittingRules *map[int]map[int]interface{}) error {
 
 	if u == nil && required > Read {
 		return ErrUnauthorized
@@ -159,11 +159,15 @@ func (c *CoreDB) requireRule(required Permission, nodeId int, u auth.User, permi
 
 	// don't check for Edit because that is not a Permission
 
-	groups, err := c.Auth.GetGroupsOf(u)
-	if err != nil {
-		return err
+	var err error
+	var groups []DBGroup
+	if u != nil {
+		groups, err = c.GroupDB.GetGroupsOf(u)
+		if err != nil {
+			return err
+		}
 	}
-	groups = append(groups, auth.AllUsers{})
+	groups = append(groups, AllUsers{})
 
 	nodeRules, err := c.GetAccessRules(nodeId)
 	if err != nil {
@@ -197,7 +201,7 @@ func (c *CoreDB) requireRule(required Permission, nodeId int, u auth.User, permi
 }
 
 // Open ignores version information in queue.
-func (c *CoreDB) Open(user *User, parent *Node, queue *Queue) (*Node, error) {
+func (c *CoreDB) Open(user DBUser, parent *Node, queue *Queue) (*Node, error) {
 
 	if queue.Len() > 16 {
 		return nil, errors.New("queue too deep")
@@ -218,7 +222,7 @@ func (c *CoreDB) Open(user *User, parent *Node, queue *Queue) (*Node, error) {
 		return nil, fmt.Errorf("open (%d, %s): %w", parentId, segment.Key, err) // %w wraps err
 	}
 
-	if err := user.RequirePermission(Read, n); err != nil {
+	if err := n.RequirePermission(Read, user); err != nil {
 		return nil, fmt.Errorf("open (%d, %s): %w", parentId, segment.Key, err)
 	}
 
@@ -231,8 +235,7 @@ func (c *CoreDB) Open(user *User, parent *Node, queue *Queue) (*Node, error) {
 	return n, nil
 }
 
-
-// SetClass shadows CoreDB.NodeDB.SetClass.
+// SetClass shadows NodeDB.SetClass.
 func (c *CoreDB) SetClass(n *Node, className string) error {
 	className = strings.TrimSpace(className)
 	if className == "" {
@@ -244,7 +247,7 @@ func (c *CoreDB) SetClass(n *Node, className string) error {
 	return c.NodeDB.SetClass(n.DBNode, className)
 }
 
-// SetParent shadows CoreDB.NodeDB.SetParent.
+// SetParent shadows NodeDB.SetParent.
 func (c *CoreDB) SetParent(n *Node, newParent *Node) error {
 
 	if n.Parent == nil {
@@ -271,7 +274,7 @@ func (c *CoreDB) SetParent(n *Node, newParent *Node) error {
 	return nil
 }
 
-// SetSlug shadows CoreDB.NodeDB.SetSlug.
+// SetSlug shadows NodeDB.SetSlug.
 // It does not care for duplicated slugs, the database must prevent them.
 func (c *CoreDB) SetSlug(n *Node, slug string) error {
 	slug = NormalizeSlug(slug)
@@ -281,7 +284,7 @@ func (c *CoreDB) SetSlug(n *Node, slug string) error {
 	return c.NodeDB.SetSlug(n, slug)
 }
 
-// SetWorkflowGroup shadows CoreDB.NodeDB.SetWorkflowGroup.
+// SetWorkflowGroup shadows NodeDB.SetWorkflowGroup.
 func (c *CoreDB) SetWorkflowGroup(n *Node, v DBVersion, newWorkflowGroup int) error {
 
 	if v.WorkflowGroupId() == newWorkflowGroup {
@@ -324,12 +327,12 @@ func (c *CoreDB) SetWorkflowGroup(n *Node, v DBVersion, newWorkflowGroup int) er
 	return nil
 }
 
-// AssignWorkflow shadows CoreDB.EditorsDB.AssignWorkflow.
+// AssignWorkflow shadows EditorsDB.AssignWorkflow.
 func (c *CoreDB) AssignWorkflow(n *Node, childrenOnly bool, workflowId int) error {
 	return c.EditorsDB.AssignWorkflowId(n.Id(), childrenOnly, workflowId)
 }
 
-// UnassignWorkflow shadows CoreDB.EditorsDB.UnassignWorkflow.
+// UnassignWorkflow shadows EditorsDB.UnassignWorkflow.
 func (c *CoreDB) UnassignWorkflow(n *Node, childrenOnly bool) error {
 	return c.EditorsDB.UnassignWorkflow(n.Id(), childrenOnly)
 }

@@ -26,10 +26,10 @@ var ErrNotFound = errors.New("not found")
 type Route struct {
 	*Queue
 	*Request
-	*Node                      // current, it's easier for template execution to have it all in one place
-	DBVersion                  // current, it's easier for template execution to have it all in one place
-	Vars     map[string]string // results of template execution
-	VarDepth map[string]int    // must be stored for each var separately
+	*Node                       // current, it's easier for template execution to have it all in one place
+	DBVersion                   // current, it's easier for template execution to have it all in one place
+	Vars      map[string]string // results of template execution
+	VarDepth  map[string]int    // must be stored for each var separately
 }
 
 // RouteFromContext gets a Route from the given context. It can panic.
@@ -176,7 +176,7 @@ func (r *Route) pop(parent, prev *Node) error {
 
 	// check permission
 
-	if err := r.User.RequirePermission(Read, n); err != nil {
+	if err := n.RequirePermission(Read, r.User); err != nil {
 		return err
 	}
 

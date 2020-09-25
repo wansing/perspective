@@ -51,7 +51,7 @@ func create(w http.ResponseWriter, req *http.Request, r *Route, params httproute
 
 	// check permission
 
-	if err = r.User.RequirePermission(core.Create, selected); err != nil {
+	if err = selected.RequirePermission(core.Create, r.User); err != nil {
 		return err
 	}
 

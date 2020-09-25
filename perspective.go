@@ -20,7 +20,6 @@ import (
 
 	"github.com/alexedwards/scs/v2"
 	_ "github.com/mattn/go-sqlite3"
-	"github.com/wansing/perspective/auth"
 	"github.com/wansing/perspective/backend"
 	//"github.com/wansing/perspective/cache/gcachekbc"
 	//"github.com/wansing/perspective/cache/maps"
@@ -129,11 +128,6 @@ func main() {
 
 	// assemble stuff
 
-	authDB := &auth.AuthDB{}
-	authDB.GroupDB = sqldb.NewGroupDB(sqlDB)
-	authDB.UserDB = sqldb.NewUserDB(sqlDB)
-	authDB.WorkflowDB = sqldb.NewWorkflowDB(sqlDB)
-
 	var sessionStore scs.Store
 	switch dbURL.Driver {
 	case "mysql":
@@ -158,10 +152,12 @@ func main() {
 	/*db.NodeDB = maps.NewNodeCache(
 		sqldb.NewNodeDB(sqlDB),
 	)*/
-	db.NodeDB = sqldb.NewNodeDB(sqlDB)
+	db.GroupDB = sqldb.NewGroupDB(sqlDB)
 	db.IndexDB = sqldb.NewIndexDB(sqlDB)
+	db.NodeDB = sqldb.NewNodeDB(sqlDB)
+	db.UserDB = sqldb.NewUserDB(sqlDB)
+	db.WorkflowDB = sqldb.NewWorkflowDB(sqlDB)
 
-	db.Auth = *authDB
 	db.HMACSecret = *hmacKey
 	db.SqlDB = sqlDB
 
@@ -197,7 +193,7 @@ func main() {
 }
 
 func insertGroup(db *core.CoreDB, name string) {
-	if err := db.Auth.InsertGroup(name); err != nil {
+	if err := db.InsertGroup(name); err != nil {
 		log.Printf(`error creating group "%s": %v`, name, err)
 	}
 }
@@ -225,13 +221,13 @@ func insertUser(db *core.CoreDB, name string) {
 		return
 	}
 
-	user, err := db.Auth.InsertUser(name)
+	user, err := db.InsertUser(name)
 	if err != nil {
 		log.Printf("error creating user %s: %v", name, err)
 		return
 	}
 
-	if err := db.Auth.SetPassword(user, string(pass1)); err != nil {
+	if err := db.SetPassword(user, string(pass1)); err != nil {
 		log.Printf("error setting password: %v", err)
 		return
 	}
@@ -239,19 +235,19 @@ func insertUser(db *core.CoreDB, name string) {
 
 func join(db *core.CoreDB, groupname string, username string) {
 
-	group, err := db.Auth.GetGroupByName(groupname)
+	group, err := db.GetGroupByName(groupname)
 	if err != nil {
 		log.Printf("error getting group %s: %v", groupname, err)
 		return
 	}
 
-	user, err := db.Auth.GetUserByName(username)
+	user, err := db.GetUserByName(username)
 	if err != nil {
 		log.Printf("error getting user %s: %v", username, err)
 		return
 	}
 
-	if err := db.Auth.Join(group, user); err != nil {
+	if err := db.Join(group, user); err != nil {
 		log.Printf("error joining: %v", err)
 		return
 	}
@@ -259,7 +255,7 @@ func join(db *core.CoreDB, groupname string, username string) {
 
 func makeAdmin(db *core.CoreDB, groupname string) {
 
-	group, err := db.Auth.GetGroupByName(groupname)
+	group, err := db.GetGroupByName(groupname)
 	if err != nil {
 		log.Printf("error getting group %s: %v", groupname, err)
 		return

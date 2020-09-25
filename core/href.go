@@ -46,7 +46,7 @@ func (n *Node) whereami(external bool, versionNo ...int) []string {
 			segment = ""
 		}
 
-		for i := 0; i < len(versionNo)-1; i = i+2 {
+		for i := 0; i < len(versionNo)-1; i = i + 2 {
 			if versionNo[i] == n.Id() {
 				segment = fmt.Sprintf("%s:%d", segment, versionNo[i+1])
 			}

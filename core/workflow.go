@@ -1,4 +1,4 @@
-package auth
+package core
 
 import (
 	"bytes"
@@ -24,12 +24,12 @@ type WorkflowDB interface {
 type Workflow struct {
 	DBWorkflow
 	groupDB      GroupDB
-	groups       []Group
+	groups       []DBGroup
 	groupsLoaded bool
 }
 
 // Groups shadows Workflow.DBWorkflow.Groups.
-func (w *Workflow) Groups() ([]Group, error) {
+func (w *Workflow) Groups() ([]DBGroup, error) {
 
 	if !w.groupsLoaded {
 
@@ -67,34 +67,34 @@ func (w *Workflow) String() string {
 	return buf.String()
 }
 
-// GetAllWorkflows shadows AuthDB.WorkflowDB.GetAllWorkflows.
-func (a *AuthDB) GetAllWorkflows(limit, offset int) ([]*Workflow, error) {
-	var workflows, err = a.WorkflowDB.GetAllWorkflows(limit, offset)
+// GetAllWorkflows shadows WorkflowDB.GetAllWorkflows.
+func (c *CoreDB) GetAllWorkflows(limit, offset int) ([]*Workflow, error) {
+	var workflows, err = c.WorkflowDB.GetAllWorkflows(limit, offset)
 	var result = make([]*Workflow, len(workflows))
 	for i := range workflows {
 		result[i] = &Workflow{
 			DBWorkflow: workflows[i],
-			groupDB:    a.GroupDB,
+			groupDB:    c.GroupDB,
 		}
 	}
 	return result, err
 }
 
-// GetWorkflow shadows AuthDB.WorkflowDB.GetWorkflow.
-func (a *AuthDB) GetWorkflow(id int) (*Workflow, error) {
-	var w, err = a.WorkflowDB.GetWorkflow(id)
+// GetWorkflow shadows WorkflowDB.GetWorkflow.
+func (c *CoreDB) GetWorkflow(id int) (*Workflow, error) {
+	var w, err = c.WorkflowDB.GetWorkflow(id)
 	return &Workflow{
 		DBWorkflow: w,
-		groupDB:    a.GroupDB,
+		groupDB:    c.GroupDB,
 	}, err
 }
 
-// UpdateWorkflow shadows AuthDB.WorkflowDB.UpdateWorkflow.
-func (a *AuthDB) UpdateWorkflow(w DBWorkflow, groupIds []int) error {
+// UpdateWorkflow shadows WorkflowDB.UpdateWorkflow.
+func (c *CoreDB) UpdateWorkflow(w DBWorkflow, groupIds []int) error {
 	for _, groupId := range groupIds {
 		if groupId == 0 {
 			return errors.New("all users is not allowed in workflow")
 		}
 	}
-	return a.WorkflowDB.UpdateWorkflow(w, groupIds)
+	return c.WorkflowDB.UpdateWorkflow(w, groupIds)
 }

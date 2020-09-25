@@ -6,7 +6,7 @@ import (
 	"strconv"
 
 	"github.com/julienschmidt/httprouter"
-	"github.com/wansing/perspective/auth"
+	"github.com/wansing/perspective/core"
 )
 
 var workflowTmpl = tmpl(`<h1>Workflow &raquo;{{ .Selected.Name }}&laquo;</h1>
@@ -40,11 +40,11 @@ var workflowTmpl = tmpl(`<h1>Workflow &raquo;{{ .Selected.Name }}&laquo;</h1>
 
 type workflowData struct {
 	*Route
-	Selected *auth.Workflow
+	Selected *core.Workflow
 }
 
-func (data *workflowData) AllGroups() ([]auth.Group, error) {
-	return data.db.Auth.GetAllGroups(10000, 0) // assuming there are not more than 10k groups
+func (data *workflowData) AllGroups() ([]core.DBGroup, error) {
+	return data.db.GetAllGroups(10000, 0) // assuming there are not more than 10k groups
 }
 
 func workflow(w http.ResponseWriter, req *http.Request, r *Route, params httprouter.Params) error {
@@ -58,7 +58,7 @@ func workflow(w http.ResponseWriter, req *http.Request, r *Route, params httprou
 		return err
 	}
 
-	selected, err := r.db.Auth.GetWorkflow(selectedId)
+	selected, err := r.db.GetWorkflow(selectedId)
 	if err != nil {
 		return err
 	}
@@ -79,7 +79,7 @@ func workflow(w http.ResponseWriter, req *http.Request, r *Route, params httprou
 			groupIds = append(groupIds, groupId)
 		}
 
-		if err := r.db.Auth.UpdateWorkflow(selected.DBWorkflow, groupIds); err != nil {
+		if err := r.db.UpdateWorkflow(selected.DBWorkflow, groupIds); err != nil {
 			return err
 		}
 

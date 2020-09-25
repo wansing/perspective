@@ -1,16 +1,16 @@
-package auth
+package core
 
 // A ReleaseState contains the state of a specific node and version in their workflow, when edited by a specific user.
 //
 // Currently it follows the subset model (see the package comment). Its functions might become an interface for different workflow models.
 type ReleaseState struct {
 	workflow *Workflow
-	index    int     // index of current workflow group in groups
-	groups   []Group // cached, last element is Readers{}
-	isMember []bool  // cached, refers to groups
+	index    int       // index of current workflow group in groups
+	groups   []DBGroup // cached, last element is Readers{}
+	isMember []bool    // cached, refers to groups
 }
 
-func GetReleaseState(workflow *Workflow, workflowGroupId int, user User) (*ReleaseState, error) {
+func GetReleaseState(workflow *Workflow, workflowGroupId int, user DBUser) (*ReleaseState, error) {
 
 	wfGroups, err := workflow.Groups()
 	if err != nil {
@@ -54,8 +54,8 @@ func (rs *ReleaseState) CanEditNode() bool {
 
 // RevokeToGroup returns the group to which the user can revoke the node directly, or nil.
 // In the subset model, this is latest "save group" before the current workflow group.
-func (rs *ReleaseState) RevokeToGroup() *Group {
-	var revokeGroup *Group
+func (rs *ReleaseState) RevokeToGroup() *DBGroup {
+	var revokeGroup *DBGroup
 	for i := 0; i < rs.index; i++ { // groups before the current workflow group
 		if rs.isMember[i] { // user must be a member of the group
 			revokeGroup = &rs.groups[i] // store it, so we get the latest possible group
@@ -66,7 +66,7 @@ func (rs *ReleaseState) RevokeToGroup() *Group {
 
 // RevokeToGroup returns the group to which the user can release the node directly, or nil.
 // In the subset model, this is first "save group" after the current workflow group.
-func (rs *ReleaseState) ReleaseToGroup() *Group {
+func (rs *ReleaseState) ReleaseToGroup() *DBGroup {
 	for i := rs.index + 1; i < len(rs.groups); i++ { // groups after the current workflow group
 		if i > 0 && rs.isMember[i-1] { // user must be a member of the previous group
 			return &rs.groups[i] // return it, so we get the earliest possible group
@@ -77,8 +77,8 @@ func (rs *ReleaseState) ReleaseToGroup() *Group {
 
 // SaveGroups determines the "save groups" of current user, which are the values that she can assign to workflowGroup.
 // This is every group which she is a member of, and each subsequent group.
-func (rs *ReleaseState) SaveGroups() []Group {
-	var saveGroups = []Group{}
+func (rs *ReleaseState) SaveGroups() []DBGroup {
+	var saveGroups = []DBGroup{}
 	for i, g := range rs.groups {
 		if g.Id() != 0 && rs.isMember[i] {
 			saveGroups = append(saveGroups, g)
@@ -103,7 +103,7 @@ func (rs *ReleaseState) IsSaveGroup(groupId int) bool {
 }
 
 // SuggestedSaveGroup determines the suggested "save group" for new versions.
-func (rs *ReleaseState) SuggestedSaveGroup() *Group {
+func (rs *ReleaseState) SuggestedSaveGroup() *DBGroup {
 
 	// one of saveGroups
 	var saveGroups = rs.SaveGroups()
@@ -130,6 +130,6 @@ func (rs *ReleaseState) Workflow() *Workflow {
 	return rs.workflow
 }
 
-func (rs *ReleaseState) WorkflowGroup() Group {
+func (rs *ReleaseState) WorkflowGroup() DBGroup {
 	return rs.groups[rs.index]
 }

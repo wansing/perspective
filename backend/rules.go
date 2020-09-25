@@ -7,7 +7,6 @@ import (
 	"sort"
 
 	"github.com/julienschmidt/httprouter"
-	"github.com/wansing/perspective/auth"
 	"github.com/wansing/perspective/core"
 )
 
@@ -56,12 +55,12 @@ type rulesData struct {
 // for view only
 type rule struct {
 	Url        string
-	Group      auth.Group
+	Group      core.DBGroup
 	Permission core.Permission
 }
 
 func (data *rulesData) WorkflowAssignments() (result []struct {
-	Workflow     *auth.Workflow
+	Workflow     *core.Workflow
 	ChildrenOnly bool
 	InternalUrl  string
 }) {
@@ -75,7 +74,7 @@ func (data *rulesData) WorkflowAssignments() (result []struct {
 		for childrenOnly, workflow := range nodeMap {
 
 			var row = struct {
-				Workflow     *auth.Workflow
+				Workflow     *core.Workflow
 				ChildrenOnly bool
 				InternalUrl  string
 			}{
@@ -113,7 +112,7 @@ func (data *rulesData) Rules() ([]rule, error) {
 				return nil, err
 			}
 
-			grp, err := data.db.Auth.GetGroup(groupId)
+			grp, err := data.db.GetGroup(groupId)
 			if err != nil {
 				return nil, fmt.Errorf("error getting group %d: %v", groupId, err)
 			}

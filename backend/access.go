@@ -9,7 +9,6 @@ import (
 	"strconv"
 
 	"github.com/julienschmidt/httprouter"
-	"github.com/wansing/perspective/auth"
 	"github.com/wansing/perspective/core"
 )
 
@@ -98,11 +97,11 @@ type accessData struct {
 	Selected *core.Node
 }
 
-func (t *accessData) AllGroups() ([]auth.Group, error) {
-	return t.db.Auth.GetAllGroups(100000, 0) // assuming there are not more than 100k groups
+func (t *accessData) AllGroups() ([]core.DBGroup, error) {
+	return t.db.GetAllGroups(100000, 0) // assuming there are not more than 100k groups
 }
 
-func (t *accessData) WriteWorkflowOptions(selectedWorkflow *auth.Workflow) (template.HTML, error) {
+func (t *accessData) WriteWorkflowOptions(selectedWorkflow *core.Workflow) (template.HTML, error) {
 
 	buf := &bytes.Buffer{}
 
@@ -116,7 +115,7 @@ func (t *accessData) WriteWorkflowOptions(selectedWorkflow *auth.Workflow) (temp
 
 	// workflows
 
-	allWorkflows, err := t.db.Auth.GetAllWorkflows(10000, 0) // assuming there are not more than 10k workflows
+	allWorkflows, err := t.db.GetAllWorkflows(10000, 0) // assuming there are not more than 10k workflows
 	if err != nil {
 		return template.HTML(""), err
 	}
@@ -139,7 +138,7 @@ func access(w http.ResponseWriter, req *http.Request, r *Route, params httproute
 		return err
 	}
 
-	err = r.User.RequirePermission(core.Admin, selected)
+	err = selected.RequirePermission(core.Admin, r.User)
 	if err != nil {
 		return err
 	}
@@ -196,7 +195,7 @@ func access(w http.ResponseWriter, req *http.Request, r *Route, params httproute
 
 		// anti-lockout
 
-		myAdminRules, err := r.User.RequirePermissionRules(core.Admin, selected)
+		myAdminRules, err := selected.RequirePermissionRules(core.Admin, r.User)
 		if err != nil {
 			return err
 		}

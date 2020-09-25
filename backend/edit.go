@@ -12,7 +12,6 @@ import (
 	"strings"
 
 	"github.com/julienschmidt/httprouter"
-	"github.com/wansing/perspective/auth"
 	"github.com/wansing/perspective/core"
 )
 
@@ -265,7 +264,7 @@ type editData struct {
 	*Route
 	Selected        *core.Node
 	SelectedVersion core.DBVersion
-	State           *auth.ReleaseState
+	State           *core.ReleaseState
 	Content         string
 	VersionNote     string
 	WorkflowGroupId int // recommended workflow group if the content is edited
@@ -305,7 +304,7 @@ func (data *editData) VersionHistory() (template.HTML, error) {
 		`)
 
 		// not taking groups from the workflow because the workflow might have changed in the meantime, not containing the group any more
-		if grp, err := data.db.Auth.GetGroupOrReaders(v.WorkflowGroupId()); err == nil {
+		if grp, err := data.db.GetGroupOrReaders(v.WorkflowGroupId()); err == nil {
 			w.WriteString(html.EscapeString(grp.Name()))
 		}
 
@@ -342,7 +341,7 @@ func edit(w http.ResponseWriter, req *http.Request, r *Route, params httprouter.
 		}
 	}
 
-	state, err := r.User.ReleaseState(selected, selectedVersion)
+	state, err := selected.ReleaseState(selectedVersion, r.User)
 	if err != nil {
 		return err
 	}

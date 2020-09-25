@@ -7,7 +7,6 @@ import (
 	"net/http"
 
 	"github.com/julienschmidt/httprouter"
-	"github.com/wansing/perspective/auth"
 	"github.com/wansing/perspective/core"
 )
 
@@ -32,15 +31,15 @@ func NewRoute(db *core.CoreDB, request *core.Request, prefix, path string) *Rout
 }
 
 func (r *Route) GroupsWriteable() bool {
-	return r.db.Auth.GroupDB.Writeable()
+	return r.db.GroupDB.Writeable()
 }
 
 func (r *Route) UsersWriteable() bool {
-	return r.db.Auth.UserDB.Writeable()
+	return r.db.UserDB.Writeable()
 }
 
 func (r *Route) WorkflowsWriteable() bool {
-	return r.db.Auth.WorkflowDB.Writeable()
+	return r.db.WorkflowDB.Writeable()
 }
 
 func middleware(db *core.CoreDB, prefix string, requireLoggedIn bool, f func(http.ResponseWriter, *http.Request, *Route, httprouter.Params) error) func(http.ResponseWriter, *http.Request, httprouter.Params) {
@@ -319,30 +318,30 @@ var backendTmpl = template.Must(template.New("backend").Parse(`
 		"Breadcrumbs": func(im *core.Node, link bool) template.HTML {
 			return Breadcrumbs(im, link)
 		},
-		"CanAdmin": func(u *core.User, e *core.Node) bool {
-			return u.RequirePermission(core.Admin, e) == nil
+		"CanAdmin": func(u core.DBUser, n *core.Node) bool {
+			return n.RequirePermission(core.Admin, u) == nil
 		},
-		"CanCreate": func(u *core.User, e *core.Node) bool {
-			return u.RequirePermission(core.Create, e) == nil
+		"CanCreate": func(u core.DBUser, n *core.Node) bool {
+			return n.RequirePermission(core.Create, u) == nil
 		},
-		"CanRemove": func(u *core.User, e *core.Node) bool {
-			return u.RequirePermission(core.Remove, e) == nil
+		"CanRemove": func(u core.DBUser, n *core.Node) bool {
+			return n.RequirePermission(core.Remove, u) == nil
 		},
 		"FormatTs": FormatTs,
-		"GroupLink": func(group auth.Group) template.HTML {
+		"GroupLink": func(group core.DBGroup) template.HTML {
 			if group.Id() == 0 { // all users
 				return template.HTML(group.Name())
 			} else {
 				return template.HTML(fmt.Sprintf(`<a href="group/%d">%s</a>`, group.Id(), group.Name()))
 			}
 		},
-		"UserLink": func(user auth.User) template.HTML {
+		"UserLink": func(user core.DBUser) template.HTML {
 			return template.HTML(fmt.Sprintf(`<a href="user/%d">%s</a>`, user.Id(), user.Name()))
 		},
-		"WorkflowLink": func(w *auth.Workflow) template.HTML {
+		"WorkflowLink": func(w *core.Workflow) template.HTML {
 			return template.HTML(fmt.Sprintf(`<a href="workflow/%d">%s</a>`, w.Id(), w.Name()))
 		},
-		"WorkflowLinkLong": func(w *auth.Workflow) template.HTML {
+		"WorkflowLinkLong": func(w *core.Workflow) template.HTML {
 			return template.HTML(fmt.Sprintf(`<a href="workflow/%d">%s</a>`, w.Id(), w.String()))
 		},
 	},

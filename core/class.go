@@ -34,14 +34,3 @@ type Instance interface {
 	AdditionalSlugs() []string // should be called after Do only
 	Do(*Route) error
 }
-
-// Instances can embed the Base class.
-type Base struct {}
-
-func (t *Base) AdditionalSlugs() []string {
-	return nil
-}
-
-func (t *Base) Do(r *Route) error {
-	return r.Recurse()
-}

@@ -4,7 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 
-	"github.com/wansing/perspective/auth"
+	"github.com/wansing/perspective/core"
 )
 
 type workflow struct {
@@ -49,7 +49,7 @@ func (w *workflow) Groups() ([]int, error) {
 	return w.groups, nil
 }
 
-func (db *WorkflowDB) Delete(w auth.DBWorkflow) error {
+func (db *WorkflowDB) Delete(w core.DBWorkflow) error {
 
 	tx, err := db.Begin()
 	if err != nil {
@@ -113,7 +113,7 @@ func (db *WorkflowDB) Writeable() bool {
 	return true
 }
 
-func (db *WorkflowDB) GetWorkflow(id int) (auth.DBWorkflow, error) {
+func (db *WorkflowDB) GetWorkflow(id int) (core.DBWorkflow, error) {
 	var w = &workflow{
 		db: db,
 		id: id,
@@ -121,7 +121,7 @@ func (db *WorkflowDB) GetWorkflow(id int) (auth.DBWorkflow, error) {
 	return w, db.get.QueryRow(id).Scan(&w.name)
 }
 
-func (db *WorkflowDB) GetAllWorkflows(limit, offset int) ([]auth.DBWorkflow, error) {
+func (db *WorkflowDB) GetAllWorkflows(limit, offset int) ([]core.DBWorkflow, error) {
 
 	rows, err := db.getAll.Query(limit, offset)
 	if err != nil {
@@ -129,7 +129,7 @@ func (db *WorkflowDB) GetAllWorkflows(limit, offset int) ([]auth.DBWorkflow, err
 	}
 	defer rows.Close()
 
-	var all = []auth.DBWorkflow{}
+	var all = []core.DBWorkflow{}
 
 	for rows.Next() {
 		var id int
@@ -153,7 +153,7 @@ func (db *WorkflowDB) InsertWorkflow(name string) error {
 	return err
 }
 
-func (db *WorkflowDB) UpdateWorkflow(w auth.DBWorkflow, groups []int) error {
+func (db *WorkflowDB) UpdateWorkflow(w core.DBWorkflow, groups []int) error {
 
 	for _, group := range groups {
 		if group <= 0 {

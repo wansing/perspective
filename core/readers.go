@@ -1,4 +1,4 @@
-package auth
+package core
 
 // Readers implements Group and represents everyone with read permission. It is similar to AllUsers and is used when dealing with edit permissions.
 type Readers struct {

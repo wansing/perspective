@@ -144,7 +144,7 @@ func choose(w http.ResponseWriter, req *http.Request, r *Route, params httproute
 		}
 	}
 
-	if err := r.User.RequirePermission(core.Read, selected); err != nil {
+	if err := selected.RequirePermission(core.Read, r.User); err != nil {
 		return err
 	}
 

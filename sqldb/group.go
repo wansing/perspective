@@ -4,7 +4,7 @@ import (
 	"database/sql"
 	"errors"
 
-	"github.com/wansing/perspective/auth"
+	"github.com/wansing/perspective/core"
 )
 
 type group struct {
@@ -23,7 +23,7 @@ func (g *group) Name() string {
 	return g.name
 }
 
-func (g *group) HasMember(u auth.DBUser) (bool, error) {
+func (g *group) HasMember(u core.DBUser) (bool, error) {
 	if members, err := g.Members(); err == nil {
 		_, ok := members[u.Id()]
 		return ok, nil
@@ -105,7 +105,7 @@ func (db *GroupDB) Writeable() bool {
 	return true
 }
 
-func (db *GroupDB) Delete(g auth.DBGroup) error {
+func (db *GroupDB) Delete(g core.DBGroup) error {
 
 	tx, err := db.Begin()
 	if err != nil {
@@ -127,7 +127,7 @@ func (db *GroupDB) Delete(g auth.DBGroup) error {
 	return tx.Commit()
 }
 
-func (db *GroupDB) GetGroup(id int) (auth.DBGroup, error) {
+func (db *GroupDB) GetGroup(id int) (core.DBGroup, error) {
 	var g = &group{
 		db: db,
 		id: id,
@@ -135,7 +135,7 @@ func (db *GroupDB) GetGroup(id int) (auth.DBGroup, error) {
 	return g, db.get.QueryRow(id).Scan(&g.name)
 }
 
-func (db *GroupDB) GetGroupByName(name string) (auth.DBGroup, error) {
+func (db *GroupDB) GetGroupByName(name string) (core.DBGroup, error) {
 	var g = &group{
 		db:   db,
 		name: name,
@@ -143,7 +143,7 @@ func (db *GroupDB) GetGroupByName(name string) (auth.DBGroup, error) {
 	return g, db.getByName.QueryRow(name).Scan(&g.id)
 }
 
-func (db *GroupDB) getMultiple(stmt *sql.Stmt, args ...interface{}) ([]auth.DBGroup, error) {
+func (db *GroupDB) getMultiple(stmt *sql.Stmt, args ...interface{}) ([]core.DBGroup, error) {
 
 	rows, err := stmt.Query(args...)
 	if err != nil {
@@ -151,7 +151,7 @@ func (db *GroupDB) getMultiple(stmt *sql.Stmt, args ...interface{}) ([]auth.DBGr
 	}
 	defer rows.Close()
 
-	var groups = []auth.DBGroup{}
+	var groups = []core.DBGroup{}
 
 	for rows.Next() {
 		var id int
@@ -170,11 +170,11 @@ func (db *GroupDB) getMultiple(stmt *sql.Stmt, args ...interface{}) ([]auth.DBGr
 	return groups, nil
 }
 
-func (db *GroupDB) GetAllGroups(limit, offset int) ([]auth.DBGroup, error) {
+func (db *GroupDB) GetAllGroups(limit, offset int) ([]core.DBGroup, error) {
 	return db.getMultiple(db.getAll, limit, offset)
 }
 
-func (db *GroupDB) GetGroupsOf(u auth.DBUser) ([]auth.DBGroup, error) {
+func (db *GroupDB) GetGroupsOf(u core.DBUser) ([]core.DBGroup, error) {
 	return db.getMultiple(db.getOf, u.Id())
 }
 
@@ -183,7 +183,7 @@ func (db *GroupDB) InsertGroup(name string) error {
 	return err
 }
 
-func (db *GroupDB) Join(g auth.DBGroup, user auth.DBUser) error {
+func (db *GroupDB) Join(g core.DBGroup, user core.DBUser) error {
 
 	if user.Id() == 0 {
 		return errors.New("can't add all users")
@@ -200,7 +200,7 @@ func (db *GroupDB) Join(g auth.DBGroup, user auth.DBUser) error {
 	return nil
 }
 
-func (db *GroupDB) Leave(g auth.DBGroup, user auth.DBUser) error {
+func (db *GroupDB) Leave(g core.DBGroup, user core.DBUser) error {
 
 	if user.Id() == 0 {
 		return errors.New("can't remove all users")

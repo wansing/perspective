@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/julienschmidt/httprouter"
-	"github.com/wansing/perspective/auth"
+	"github.com/wansing/perspective/core"
 )
 
 var usersTmpl = tmpl(`<h1>Users</h1>
@@ -30,8 +30,8 @@ type usersData struct {
 	*Route
 }
 
-func (data *usersData) Users() ([]auth.User, error) {
-	return data.db.Auth.GetAllUsers(100000, 0) // assuming there are not more than 100k users
+func (data *usersData) Users() ([]core.DBUser, error) {
+	return data.db.GetAllUsers(100000, 0) // assuming there are not more than 100k users
 }
 
 func users(w http.ResponseWriter, req *http.Request, r *Route, params httprouter.Params) error {
@@ -48,7 +48,7 @@ func users(w http.ResponseWriter, req *http.Request, r *Route, params httprouter
 			return errors.New("missing email address")
 		}
 
-		if _, err := r.db.Auth.InsertUser(newUserMail); err != nil {
+		if _, err := r.db.InsertUser(newUserMail); err != nil {
 			return err
 		}
 

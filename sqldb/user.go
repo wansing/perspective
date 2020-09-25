@@ -5,7 +5,7 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/wansing/perspective/auth"
+	"github.com/wansing/perspective/core"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -76,20 +76,20 @@ func (db *UserDB) Writeable() bool {
 	return true
 }
 
-func (db *UserDB) ChangePassword(u auth.DBUser, old, new string) error {
+func (db *UserDB) ChangePassword(u core.DBUser, old, new string) error {
 	if !u.(*user).compare(old) {
 		return ErrAuth
 	}
 	return db.SetPassword(u, new)
 }
 
-func (db *UserDB) Delete(u auth.DBUser) error {
+func (db *UserDB) Delete(u core.DBUser) error {
 	_, err := db.delete.Exec(u.Id())
 	return err
 }
 
 // Get may return sql.ErrNoRows, because we can not compare the returned auth.DBUser to nil.
-func (db *UserDB) GetUser(id int) (auth.DBUser, error) {
+func (db *UserDB) GetUser(id int) (core.DBUser, error) {
 	var u = &user{
 		id: id,
 	}
@@ -98,7 +98,7 @@ func (db *UserDB) GetUser(id int) (auth.DBUser, error) {
 }
 
 // Get may return sql.ErrNoRows, because we can not compare the returned auth.DBUser to nil.
-func (db *UserDB) GetUserByName(name string) (auth.DBUser, error) {
+func (db *UserDB) GetUserByName(name string) (core.DBUser, error) {
 	var u = &user{
 		name: name,
 	}
@@ -106,9 +106,9 @@ func (db *UserDB) GetUserByName(name string) (auth.DBUser, error) {
 	return u, err
 }
 
-func (db *UserDB) GetAllUsers(limit, offset int) ([]auth.DBUser, error) {
+func (db *UserDB) GetAllUsers(limit, offset int) ([]core.DBUser, error) {
 
-	var all = []auth.DBUser{}
+	var all = []core.DBUser{}
 
 	rows, err := db.getAll.Query(limit, offset)
 	if err != nil {
@@ -128,7 +128,7 @@ func (db *UserDB) GetAllUsers(limit, offset int) ([]auth.DBUser, error) {
 	return all, nil
 }
 
-func (db *UserDB) InsertUser(name string) (auth.DBUser, error) {
+func (db *UserDB) InsertUser(name string) (core.DBUser, error) {
 	name = clean(name)
 	res, err := db.insert.Exec(name)
 	if err != nil {
@@ -141,7 +141,7 @@ func (db *UserDB) InsertUser(name string) (auth.DBUser, error) {
 	}, err
 }
 
-func (db *UserDB) LoginUser(name, password string) (auth.DBUser, error) {
+func (db *UserDB) LoginUser(name, password string) (core.DBUser, error) {
 
 	name = clean(name)
 
@@ -162,7 +162,7 @@ func (db *UserDB) LoginUser(name, password string) (auth.DBUser, error) {
 	return u, nil
 }
 
-func (db *UserDB) SetPassword(u auth.DBUser, password string) error {
+func (db *UserDB) SetPassword(u core.DBUser, password string) error {
 
 	if password == "" {
 		return errors.New("no password given")

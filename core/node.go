@@ -3,10 +3,8 @@ package core
 import (
 	"errors"
 	"fmt"
-	"html/template"
 	"net/url"
 
-	"github.com/wansing/perspective/auth"
 	"github.com/wansing/perspective/upload"
 )
 
@@ -20,18 +18,6 @@ type DBNode interface {
 	TsCreated() int64
 	MaxVersionNo() int
 	MaxWGZeroVersionNo() int // The number of the latest version with workflow_group == 0, else zero. Redundant, but helpful.
-}
-
-type DBVersionStub interface {
-	TsChanged() int64
-	VersionNo() int // ascending
-	VersionNote() string
-	WorkflowGroupId() int // one from the workflow, or zero if the version finished its workflow and is visible to all who have the right to read it
-}
-
-type DBVersion interface {
-	DBVersionStub
-	Content() string
 }
 
 type DBNodeVersion interface {
@@ -84,27 +70,14 @@ type Node struct {
 	DBNode
 	Instance
 	Class      *Class
-	db         *CoreDB
 	Parent     *Node // parent in node hierarchy, required for permission checking, nil if node is root
 	Prev       *Node // predecessor in route, nil if node is root (or included, which makes it the root of a route)
 	Next       *Node // successor in route, nil if node is leaf
 	Tags       []string
 	Timestamps []int64
-	pushed     bool // whether the slug of this node had been pushed to the queue
-	localVars  map[string]string
 
-	overrideContent bool
-	content         string
-}
-
-// implements DBVersion, overrides Content()
-type VersionWrapContent struct {
-	DBVersion
-	content string
-}
-
-func (v VersionWrapContent) Content() string {
-	return v.content
+	db     *CoreDB
+	pushed bool // whether the slug of this node had been pushed to the queue
 }
 
 // NewNode creates a Node. You must set Prev and Next on your own.
@@ -113,7 +86,6 @@ func (c *CoreDB) NewNode(parent *Node, dbNode DBNode) *Node {
 	var n = &Node{}
 	n.db = c
 	n.DBNode = dbNode
-	n.localVars = make(map[string]string)
 	n.Parent = parent
 
 	var ok bool
@@ -198,15 +170,15 @@ func (n *Node) Id() int {
 	return 0
 }
 
-func (n *Node) GetChildren(user *User, order Order, limit, offset int) ([]*Node, error) {
+func (n *Node) GetChildren(user DBUser, order Order, limit, offset int) ([]*Node, error) {
 	return n.getChildren(n.db.GetChildren, user, order, limit, offset)
 }
 
-func (n *Node) GetReleasedChildren(user *User, order Order, limit, offset int) ([]*Node, error) {
+func (n *Node) GetReleasedChildren(user DBUser, order Order, limit, offset int) ([]*Node, error) {
 	return n.getChildren(n.db.GetReleasedChildren, user, order, limit, offset)
 }
 
-func (n *Node) getChildren(f func(id int, order Order, limit, offset int) ([]DBNodeVersion, error), user *User, order Order, limit, offset int) ([]*Node, error) {
+func (n *Node) getChildren(f func(id int, order Order, limit, offset int) ([]DBNodeVersion, error), user DBUser, order Order, limit, offset int) ([]*Node, error) {
 	var children, err = f(n.Id(), order, limit, offset)
 	if err != nil {
 		return nil, err
@@ -214,7 +186,7 @@ func (n *Node) getChildren(f func(id int, order Order, limit, offset int) ([]DBN
 	var result = make([]*Node, 0, len(children))
 	for _, c := range children {
 		node := n.db.NewNode(n, c)
-		if err := user.RequirePermission(Read, node); err != nil {
+		if err := node.RequirePermission(Read, user); err != nil {
 			continue
 		}
 		result = append(result, node)
@@ -223,14 +195,14 @@ func (n *Node) getChildren(f func(id int, order Order, limit, offset int) ([]DBN
 }
 
 // GetAssignedRules returns all access rules which are assigned with the receiver node.
-func (n *Node) GetAssignedRules() (map[auth.Group]Permission, error) {
+func (n *Node) GetAssignedRules() (map[DBGroup]Permission, error) {
 	var rawRules, err = n.db.GetAccessRules(n.Id())
 	if err != nil {
 		return nil, err
 	}
-	var rules = make(map[auth.Group]Permission)
+	var rules = make(map[DBGroup]Permission)
 	for groupId, permInt := range rawRules {
-		var group, err = n.db.Auth.GetGroup(groupId)
+		var group, err = n.db.GetGroup(groupId)
 		if err != nil {
 			return nil, err
 		}
@@ -244,7 +216,7 @@ func (n *Node) GetAssignedRules() (map[auth.Group]Permission, error) {
 }
 
 // GetAssignedWorkflow returns the workflow which is directly assigned to the node, if any.
-func (n *Node) GetAssignedWorkflow(childrenOnly bool) (*auth.Workflow, error) {
+func (n *Node) GetAssignedWorkflow(childrenOnly bool) (*Workflow, error) {
 	var workflowId, err = n.db.GetAssignedWorkflowId(n.Id(), childrenOnly)
 	if err != nil {
 		return nil, err
@@ -252,11 +224,11 @@ func (n *Node) GetAssignedWorkflow(childrenOnly bool) (*auth.Workflow, error) {
 	if workflowId == 0 {
 		return nil, nil
 	}
-	return n.db.Auth.GetWorkflow(workflowId)
+	return n.db.GetWorkflow(workflowId)
 }
 
 // GetWorkflow returns the workflow which applies (but is not necessarily directly assigned) to the node.
-func (n *Node) GetWorkflow() (*auth.Workflow, error) {
+func (n *Node) GetWorkflow() (*Workflow, error) {
 
 	// check impression (with childrenOnly == false)
 
@@ -320,20 +292,4 @@ func (c *CoreDB) AddChild(n *Node, slug, className string) error {
 		return fmt.Errorf("class %s not found", className)
 	}
 	return c.InsertNode(n.DBNode.Id(), slug, className)
-}
-
-// GetLocal returns the value of a local variable as HTML.
-func (n *Node) GetLocal(varName string) template.HTML {
-	return template.HTML(n.localVars[varName])
-}
-
-// GetLocal returns the value of a local variable as a string.
-func (n *Node) GetLocalStr(varName string) string {
-	return n.localVars[varName]
-}
-
-// SetLocal sets a local variable.
-func (n *Node) SetLocal(name, value string) interface{} {
-	n.localVars[name] = value
-	return nil
 }
