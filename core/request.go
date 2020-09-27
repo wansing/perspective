@@ -176,7 +176,7 @@ func (req *Request) Logout() {
 
 // Open calls CoreDB.Open.
 func (req *Request) Open(path string) (*Node, error) {
-	return req.db.Open(req.User, nil, NewQueue(path))
+	return req.db.Open(req.User, nil, NewQueue("/"+RootSlug+path))
 }
 
 // GetGlobal returns the value of a global variable.

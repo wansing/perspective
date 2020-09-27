@@ -8,16 +8,14 @@ const DefaultVersion = 0 // latest version or latest release, depending on where
 
 type Queue []string
 
+// NewQueue creates a queue from the given path.
+// Subsequent slashes are collapsed.
 func NewQueue(path string) *Queue {
-
 	fields := strings.FieldsFunc(path, func(c rune) bool {
 		return c == 47 // slash
 	})
-
-	q := &Queue{RootSlug} // prepend RootSlug
-	*q = append(*q, fields...)
-
-	return q
+	var q = Queue(fields)
+	return &q
 }
 
 func (q *Queue) HasPrefix(slug string) bool {

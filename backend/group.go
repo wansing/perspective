@@ -31,7 +31,7 @@ var groupTmpl = tmpl(`<h1>Group &raquo;{{ .Selected.Name }}&laquo;</h1>
 	</form>`)
 
 type groupData struct {
-	*Route
+	*context
 	Selected core.DBGroup
 }
 
@@ -54,9 +54,9 @@ func (data *groupData) Members() ([]core.DBUser, error) {
 	return members, nil
 }
 
-func group(w http.ResponseWriter, req *http.Request, r *Route, params httprouter.Params) error {
+func group(w http.ResponseWriter, req *http.Request, ctx *context, params httprouter.Params) error {
 
-	if !r.IsRootAdmin() {
+	if !ctx.IsRootAdmin() {
 		return errors.New("unauthorized")
 	}
 
@@ -65,7 +65,7 @@ func group(w http.ResponseWriter, req *http.Request, r *Route, params httprouter
 		return err
 	}
 
-	selected, err := r.db.GetGroup(selectedId)
+	selected, err := ctx.db.GetGroup(selectedId)
 	if err != nil {
 		return err
 	}
@@ -76,27 +76,27 @@ func group(w http.ResponseWriter, req *http.Request, r *Route, params httprouter
 
 			userId, err := strconv.Atoi(addUserId)
 			if err != nil {
-				r.Danger(err)
+				ctx.Danger(err)
 				return nil
 			}
 
-			user, err := r.db.GetUser(userId)
+			user, err := ctx.db.GetUser(userId)
 			if err != nil {
 				return err
 			}
 
-			if err = r.db.GroupDB.Join(selected, user); err != nil {
+			if err = ctx.db.GroupDB.Join(selected, user); err != nil {
 				return err
 			}
 
-			r.Success("user %s has been added to group %s", user.Name(), selected.Name())
-			r.SeeOther("/group/%d", selected.Id())
+			ctx.Success("user %s has been added to group %s", user.Name(), selected.Name())
+			ctx.SeeOther("/group/%d", selected.Id())
 			return nil
 		}
 	}
 
 	return groupTmpl.Execute(w, &groupData{
-		Route:    r,
+		context:  ctx,
 		Selected: selected,
 	})
 }

@@ -8,9 +8,9 @@ import (
 	"github.com/julienschmidt/httprouter"
 )
 
-func release(w http.ResponseWriter, req *http.Request, r *Route, params httprouter.Params) error {
+func release(w http.ResponseWriter, req *http.Request, ctx *context, params httprouter.Params) error {
 
-	selected, err := r.Open(params.ByName("path"))
+	selected, err := ctx.Open(params.ByName("path"))
 	if err != nil {
 		return err
 	}
@@ -25,9 +25,9 @@ func release(w http.ResponseWriter, req *http.Request, r *Route, params httprout
 		return err
 	}
 
-	defer r.SeeOther("/edit/%d%s", versionNo, selected.Location())
+	defer ctx.SeeOther("/edit/%d%s", versionNo, selected.Location())
 
-	state, err := selected.ReleaseState(selectedVersion, r.User)
+	state, err := selected.ReleaseState(selectedVersion, ctx.User)
 	if err != nil {
 		return err
 	}
@@ -41,7 +41,7 @@ func release(w http.ResponseWriter, req *http.Request, r *Route, params httprout
 		return errors.New("no release group")
 	}
 
-	if err = r.db.SetWorkflowGroup(selected, selectedVersion, (*releaseToGroup).Id()); err != nil {
+	if err = ctx.db.SetWorkflowGroup(selected, selectedVersion, (*releaseToGroup).Id()); err != nil {
 		return err
 	}
 

@@ -52,7 +52,7 @@ var userTmpl = tmpl(`<h1>User &raquo;{{ .Selected.Name }}&laquo;</h1>
 	</form>`)
 
 type userData struct {
-	*Route
+	*context
 	Selected core.DBUser
 }
 
@@ -60,19 +60,19 @@ func (data *userData) Groups() ([]core.DBGroup, error) {
 	return data.db.GetGroupsOf(data.Selected)
 }
 
-func user(w http.ResponseWriter, req *http.Request, r *Route, params httprouter.Params) error {
+func user(w http.ResponseWriter, req *http.Request, ctx *context, params httprouter.Params) error {
 
 	selectedId, err := strconv.Atoi(params.ByName("id"))
 	if err != nil {
 		return err
 	}
 
-	selected, err := r.db.GetUser(selectedId)
+	selected, err := ctx.db.GetUser(selectedId)
 	if err != nil {
 		return err
 	}
 
-	if !(r.IsRootAdmin() || selected.Id() == r.User.Id()) {
+	if !(ctx.IsRootAdmin() || selected.Id() == ctx.User.Id()) {
 		return errors.New("unauthorized")
 	}
 
@@ -89,17 +89,17 @@ func user(w http.ResponseWriter, req *http.Request, r *Route, params httprouter.
 			return errors.New("new password is empty") // we could use zxcvbn instead, or leave it to the UserDB
 		}
 
-		if err = r.db.ChangePassword(selected, req.PostFormValue("old"), new1); err != nil {
+		if err = ctx.db.ChangePassword(selected, req.PostFormValue("old"), new1); err != nil {
 			return err
 		}
 
-		r.Success("password of %s has been changed", selected.Name())
-		r.SeeOther("/users/%d", selected.Id())
+		ctx.Success("password of %s has been changed", selected.Name())
+		ctx.SeeOther("/users/%d", selected.Id())
 		return nil
 	}
 
 	return userTmpl.Execute(w, &userData{
-		Route:    r,
+		context:  ctx,
 		Selected: selected,
 	})
 }

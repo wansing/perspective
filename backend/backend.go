@@ -12,61 +12,54 @@ import (
 
 var ErrAuth = errors.New("unauthorized")
 
-// we need the CoreDB (which is not exposed to user content) in the backend
-type Route struct {
-	*core.Route
+// we need the CoreDB in the backend
+type context struct {
+	*core.Request
 	Prefix string // with trailing slash
 	db     *core.CoreDB
 }
 
-func NewRoute(db *core.CoreDB, request *core.Request, prefix, path string) *Route {
-	return &Route{
-		Route: &core.Route{
-			Request: request,
-			Queue:   core.NewQueue(path),
-		},
-		Prefix: prefix + "/backend/",
-		db:     db,
-	}
+func (ctx *context) GroupsWriteable() bool {
+	return ctx.db.GroupDB.Writeable()
 }
 
-func (r *Route) GroupsWriteable() bool {
-	return r.db.GroupDB.Writeable()
+func (ctx *context) UsersWriteable() bool {
+	return ctx.db.UserDB.Writeable()
 }
 
-func (r *Route) UsersWriteable() bool {
-	return r.db.UserDB.Writeable()
+func (ctx *context) WorkflowsWriteable() bool {
+	return ctx.db.WorkflowDB.Writeable()
 }
 
-func (r *Route) WorkflowsWriteable() bool {
-	return r.db.WorkflowDB.Writeable()
-}
-
-func middleware(db *core.CoreDB, prefix string, requireLoggedIn bool, f func(http.ResponseWriter, *http.Request, *Route, httprouter.Params) error) func(http.ResponseWriter, *http.Request, httprouter.Params) {
+func middleware(db *core.CoreDB, prefix string, requireLoggedIn bool, f func(http.ResponseWriter, *http.Request, *context, httprouter.Params) error) func(http.ResponseWriter, *http.Request, httprouter.Params) {
 	return func(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
 
 		// similar to the code in func main
 
 		var request = db.NewRequest(w, req)
 
-		var mainRoute = NewRoute(db, request, prefix, req.URL.Path)
-		defer mainRoute.Cleanup()
+		var ctx = &context{
+			Prefix:  prefix + "/backend/",
+			Request: request,
+			db:      db,
+		}
+		defer ctx.Cleanup()
 
-		if requireLoggedIn && !mainRoute.LoggedIn() {
-			mainRoute.SeeOther("/")
+		if requireLoggedIn && !ctx.LoggedIn() {
+			ctx.SeeOther("/")
 			return
 		}
 
-		mainRoute.SetGlobal("include-bootstrap-4-css", "true")
+		ctx.SetGlobal("include-bootstrap-4-css", "true")
 
-		if err := f(w, req, mainRoute, params); err != nil {
+		if err := f(w, req, ctx, params); err != nil {
 			// probably no template has been executed, so execute error template
 			errorTmpl.Execute(w, struct {
-				*Route
+				*context
 				Err error
 			}{
-				Route: mainRoute,
-				Err:   err,
+				context: ctx,
+				Err:     err,
 			})
 		}
 	}

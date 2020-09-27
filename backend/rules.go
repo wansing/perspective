@@ -49,7 +49,7 @@ var rulesTmpl = tmpl(`<h1>All Access Rules</h1>
 	</table>`)
 
 type rulesData struct {
-	*Route
+	*context
 }
 
 // for view only
@@ -143,13 +143,13 @@ func (data *rulesData) Rules() ([]rule, error) {
 	return result, nil
 }
 
-func rules(w http.ResponseWriter, req *http.Request, r *Route, params httprouter.Params) error {
+func rules(w http.ResponseWriter, req *http.Request, ctx *context, params httprouter.Params) error {
 
-	if !r.IsRootAdmin() {
+	if !ctx.IsRootAdmin() {
 		return errors.New("unauthorized")
 	}
 
 	return rulesTmpl.Execute(w, &rulesData{
-		Route: r,
+		context: ctx,
 	})
 }

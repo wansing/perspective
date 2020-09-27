@@ -27,16 +27,16 @@ var usersTmpl = tmpl(`<h1>Users</h1>
 	</div>`)
 
 type usersData struct {
-	*Route
+	*context
 }
 
 func (data *usersData) Users() ([]core.DBUser, error) {
 	return data.db.GetAllUsers(100000, 0) // assuming there are not more than 100k users
 }
 
-func users(w http.ResponseWriter, req *http.Request, r *Route, params httprouter.Params) error {
+func users(w http.ResponseWriter, req *http.Request, ctx *context, params httprouter.Params) error {
 
-	if !r.IsRootAdmin() {
+	if !ctx.IsRootAdmin() {
 		return errors.New("unauthorized")
 	}
 
@@ -48,16 +48,16 @@ func users(w http.ResponseWriter, req *http.Request, r *Route, params httprouter
 			return errors.New("missing email address")
 		}
 
-		if _, err := r.db.InsertUser(newUserMail); err != nil {
+		if _, err := ctx.db.InsertUser(newUserMail); err != nil {
 			return err
 		}
 
-		r.Success("user %s has been created", newUserMail)
-		r.SeeOther("/users")
+		ctx.Success("user %s has been created", newUserMail)
+		ctx.SeeOther("/users")
 		return nil
 	}
 
 	return usersTmpl.Execute(w, &usersData{
-		Route: r,
+		context: ctx,
 	})
 }

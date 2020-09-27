@@ -323,7 +323,7 @@ func listen(db *core.CoreDB, addr string, base string) {
 
 				var mainRoute = &core.Route{
 					Request: request,
-					Queue:   core.NewQueue(req.URL.Path),
+					Queue:   core.NewQueue("/"+core.RootSlug+req.URL.Path),
 				}
 				defer mainRoute.Cleanup()
 

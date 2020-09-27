@@ -84,13 +84,13 @@ var chooseTmpl = tmpl(`{{ Breadcrumbs .Selected false }}
 	</nav>`)
 
 type chooseData struct {
-	*Route
+	*context
 	page     int
 	Selected *core.Node
 }
 
 func (data *chooseData) Children() ([]*core.Node, error) {
-	return data.Selected.GetChildren(data.Route.Route.Request.User, data.Selected.Class.SelectOrder, SelectPerPage, (data.page-1)*SelectPerPage)
+	return data.Selected.GetChildren(data.Request.User, data.Selected.Class.SelectOrder, SelectPerPage, (data.page-1)*SelectPerPage)
 }
 
 func (data *chooseData) PageLinks() []template.HTML {
@@ -126,7 +126,7 @@ func (*chooseData) WorkflowIndicator(e core.DBNode) template.HTML {
 	return template.HTML(`<span class="alert-inline alert-danger" title="The latest version has not been released yet.">&hellip;</span>`)
 }
 
-func choose(w http.ResponseWriter, req *http.Request, r *Route, params httprouter.Params) error {
+func choose(w http.ResponseWriter, req *http.Request, ctx *context, params httprouter.Params) error {
 
 	page, err := strconv.Atoi(params.ByName("page"))
 	if err != nil {
@@ -134,22 +134,22 @@ func choose(w http.ResponseWriter, req *http.Request, r *Route, params httproute
 	}
 
 	var path = params.ByName("path")
-	selected, err := r.Open(path)
+	selected, err := ctx.Open(path)
 	if err != nil {
-		if r.db.IsNotFound(err) && path == "/" && r.IsRootAdmin() {
-			r.SeeOther("/create-root-node")
+		if ctx.db.IsNotFound(err) && path == "/" && ctx.IsRootAdmin() {
+			ctx.SeeOther("/create-root-node")
 			return nil
 		} else {
 			return err
 		}
 	}
 
-	if err := selected.RequirePermission(core.Read, r.User); err != nil {
+	if err := selected.RequirePermission(core.Read, ctx.User); err != nil {
 		return err
 	}
 
 	return chooseTmpl.Execute(w, &chooseData{
-		Route:    r,
+		context:  ctx,
 		page:     page,
 		Selected: selected,
 	})

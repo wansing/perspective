@@ -85,7 +85,7 @@ type Blog struct {
 	core.Base
 	Children  []*blogChild
 	Next      *blogNode // pointer so it can be nil
-	page      int // starting with 1
+	page      int       // starting with 1
 	PageLinks []template.HTML
 	pages     int
 	perPage   int

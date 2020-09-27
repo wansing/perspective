@@ -37,14 +37,14 @@ var renameTmpl = tmpl(`<h1>Rename {{ .Selected.Location }}</h1>
 		</form>`)
 
 type renameData struct {
-	*Route
+	*context
 	Selected *core.Node
 	NewSlug  string
 }
 
-func rename(w http.ResponseWriter, req *http.Request, r *Route, params httprouter.Params) error {
+func rename(w http.ResponseWriter, req *http.Request, ctx *context, params httprouter.Params) error {
 
-	selected, err := r.Open(params.ByName("path"))
+	selected, err := ctx.Open(params.ByName("path"))
 	if err != nil {
 		return err
 	}
@@ -53,7 +53,7 @@ func rename(w http.ResponseWriter, req *http.Request, r *Route, params httproute
 
 	// check permission
 
-	if err = selected.RequirePermission(core.Remove, r.User); err != nil {
+	if err = selected.RequirePermission(core.Remove, ctx.User); err != nil {
 		return err
 	}
 
@@ -67,16 +67,16 @@ func rename(w http.ResponseWriter, req *http.Request, r *Route, params httproute
 
 		newSlug = req.PostFormValue("slug")
 
-		if err = r.db.SetSlug(selected, newSlug); err == nil {
-			r.SeeOther("/choose/1%s", selected.Location()) // TODO SetSlug didn't update selected, we're redirected to the old location
+		if err = ctx.db.SetSlug(selected, newSlug); err == nil {
+			ctx.SeeOther("/choose/1%s", selected.Location()) // TODO SetSlug didn't update selected, we're redirected to the old location
 			return nil
 		} else {
-			r.Danger(err)
+			ctx.Danger(err)
 		}
 	}
 
 	return renameTmpl.Execute(w, &renameData{
-		Route:    r,
+		context:  ctx,
 		NewSlug:  newSlug,
 		Selected: selected,
 	})

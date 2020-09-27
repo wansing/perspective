@@ -6,9 +6,9 @@ import (
 	"github.com/julienschmidt/httprouter"
 )
 
-func logout(w http.ResponseWriter, req *http.Request, r *Route, params httprouter.Params) error {
-	r.Logout()
-	r.Success("Goodbye")
-	r.SeeOther("/login")
+func logout(w http.ResponseWriter, req *http.Request, ctx *context, params httprouter.Params) error {
+	ctx.Logout()
+	ctx.Success("Goodbye")
+	ctx.SeeOther("/login")
 	return nil
 }

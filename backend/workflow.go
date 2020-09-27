@@ -39,7 +39,7 @@ var workflowTmpl = tmpl(`<h1>Workflow &raquo;{{ .Selected.Name }}&laquo;</h1>
 	<a href="workflow/{{ .Selected.Id }}/delete">`)
 
 type workflowData struct {
-	*Route
+	*context
 	Selected *core.Workflow
 }
 
@@ -47,9 +47,9 @@ func (data *workflowData) AllGroups() ([]core.DBGroup, error) {
 	return data.db.GetAllGroups(10000, 0) // assuming there are not more than 10k groups
 }
 
-func workflow(w http.ResponseWriter, req *http.Request, r *Route, params httprouter.Params) error {
+func workflow(w http.ResponseWriter, req *http.Request, ctx *context, params httprouter.Params) error {
 
-	if !r.IsRootAdmin() {
+	if !ctx.IsRootAdmin() {
 		return errors.New("unauthorized")
 	}
 
@@ -58,7 +58,7 @@ func workflow(w http.ResponseWriter, req *http.Request, r *Route, params httprou
 		return err
 	}
 
-	selected, err := r.db.GetWorkflow(selectedId)
+	selected, err := ctx.db.GetWorkflow(selectedId)
 	if err != nil {
 		return err
 	}
@@ -79,17 +79,17 @@ func workflow(w http.ResponseWriter, req *http.Request, r *Route, params httprou
 			groupIds = append(groupIds, groupId)
 		}
 
-		if err := r.db.UpdateWorkflow(selected.DBWorkflow, groupIds); err != nil {
+		if err := ctx.db.UpdateWorkflow(selected.DBWorkflow, groupIds); err != nil {
 			return err
 		}
 
-		r.Success("workflow %s has been updated", selected.Name())
-		r.SeeOther("/workflow/%d", selected.Id())
+		ctx.Success("workflow %s has been updated", selected.Name())
+		ctx.SeeOther("/workflow/%d", selected.Id())
 		return nil
 	}
 
 	return workflowTmpl.Execute(w, &workflowData{
-		Route:    r,
+		context:  ctx,
 		Selected: selected,
 	})
 }

@@ -38,14 +38,14 @@ var moveTmpl = tmpl(`<h1>Move {{ .Selected.Location }}</h1>
 	</form>`)
 
 type moveData struct {
-	*Route
+	*context
 	ParentUrl string
 	Selected  *core.Node
 }
 
-func move(w http.ResponseWriter, req *http.Request, r *Route, params httprouter.Params) error {
+func move(w http.ResponseWriter, req *http.Request, ctx *context, params httprouter.Params) error {
 
-	selected, err := r.Open(params.ByName("path"))
+	selected, err := ctx.Open(params.ByName("path"))
 	if err != nil {
 		return err
 	}
@@ -56,7 +56,7 @@ func move(w http.ResponseWriter, req *http.Request, r *Route, params httprouter.
 		return errors.New("can't move root")
 	}
 
-	if err = selected.Parent.RequirePermission(core.Remove, r.User); err != nil {
+	if err = selected.Parent.RequirePermission(core.Remove, ctx.User); err != nil {
 		return err
 	}
 
@@ -71,27 +71,27 @@ func move(w http.ResponseWriter, req *http.Request, r *Route, params httprouter.
 			parentUrl = path.Join(selected.Location(), parentUrl)
 		}
 
-		newParent, err := r.Open(parentUrl)
+		newParent, err := ctx.Open(parentUrl)
 		if err != nil {
 			return err
 		}
 
 		// check create permission
 
-		if err = newParent.RequirePermission(core.Create, r.User); err != nil {
+		if err = newParent.RequirePermission(core.Create, ctx.User); err != nil {
 			return err
 		}
 
-		if err = r.db.SetParent(selected, newParent); err == nil {
-			r.SeeOther("/choose/1%s", selected.Location())
+		if err = ctx.db.SetParent(selected, newParent); err == nil {
+			ctx.SeeOther("/choose/1%s", selected.Location())
 			return nil
 		} else {
-			r.Danger(err)
+			ctx.Danger(err)
 		}
 	}
 
 	return moveTmpl.Execute(w, &moveData{
-		Route:     r,
+		context:   ctx,
 		ParentUrl: parentUrl,
 		Selected:  selected,
 	})

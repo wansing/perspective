@@ -27,16 +27,16 @@ var groupsTmpl = tmpl(`<h1>Groups</h1>
 	</form>`)
 
 type groupsData struct {
-	*Route
+	*context
 }
 
 func (data *groupsData) Groups() ([]core.DBGroup, error) {
 	return data.db.GetAllGroups(10000, 0) // assuming there are not more than 10k groups
 }
 
-func groups(w http.ResponseWriter, req *http.Request, r *Route, params httprouter.Params) error {
+func groups(w http.ResponseWriter, req *http.Request, ctx *context, params httprouter.Params) error {
 
-	if !r.IsRootAdmin() {
+	if !ctx.IsRootAdmin() {
 		return errors.New("unauthorized")
 	}
 
@@ -48,16 +48,16 @@ func groups(w http.ResponseWriter, req *http.Request, r *Route, params httproute
 			return errors.New("missing name")
 		}
 
-		if err := r.db.InsertGroup(newGroupName); err != nil {
+		if err := ctx.db.InsertGroup(newGroupName); err != nil {
 			return err
 		}
 
-		r.Success("group %s has been created", newGroupName)
-		r.SeeOther("/groups")
+		ctx.Success("group %s has been created", newGroupName)
+		ctx.SeeOther("/groups")
 		return nil
 	}
 
 	return groupsTmpl.Execute(w, &groupsData{
-		Route: r,
+		context: ctx,
 	})
 }

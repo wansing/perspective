@@ -19,13 +19,13 @@ var deleteTmpl = tmpl(`<h1>Delete {{ .Selected.Location }}</h1>
 	</form>`)
 
 type deleteData struct {
-	*Route
+	*context
 	Selected *core.Node
 }
 
-func del(w http.ResponseWriter, req *http.Request, r *Route, params httprouter.Params) error {
+func del(w http.ResponseWriter, req *http.Request, ctx *context, params httprouter.Params) error {
 
-	selected, err := r.Open(params.ByName("path"))
+	selected, err := ctx.Open(params.ByName("path"))
 	if err != nil {
 		return err
 	}
@@ -36,23 +36,23 @@ func del(w http.ResponseWriter, req *http.Request, r *Route, params httprouter.P
 		return errors.New("can't delete root")
 	}
 
-	if err = selected.Parent.RequirePermission(core.Remove, r.User); err != nil {
+	if err = selected.Parent.RequirePermission(core.Remove, ctx.User); err != nil {
 		return err
 	}
 
 	// delete
 
 	if req.PostFormValue("delete") != "" {
-		if err := r.db.DeleteNode(selected); err == nil {
-			r.SeeOther("/choose/1%s", selected.Parent.Location())
+		if err := ctx.db.DeleteNode(selected); err == nil {
+			ctx.SeeOther("/choose/1%s", selected.Parent.Location())
 			return nil
 		} else {
-			r.Danger(err)
+			ctx.Danger(err)
 		}
 	}
 
 	return deleteTmpl.Execute(w, &deleteData{
-		Route:    r,
+		context:  ctx,
 		Selected: selected,
 	})
 }

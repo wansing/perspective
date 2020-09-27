@@ -16,20 +16,20 @@ var createRootNodeTmpl = tmpl(`<h1>Create root node</h1>
 		<input type="submit" class="btn btn-primary" name="create" value="Create root node">
 	</form>`)
 
-func createRootNode(w http.ResponseWriter, req *http.Request, r *Route, params httprouter.Params) error {
+func createRootNode(w http.ResponseWriter, req *http.Request, ctx *context, params httprouter.Params) error {
 
-	if !r.IsRootAdmin() {
+	if !ctx.IsRootAdmin() {
 		return errors.New("you need root admin permission")
 	}
 
 	if req.PostFormValue("create") != "" {
-		if err := r.db.NodeDB.InsertNode(0, core.RootSlug, "html"); err == nil {
-			r.SeeOther("/choose/1/")
+		if err := ctx.db.NodeDB.InsertNode(0, core.RootSlug, "html"); err == nil {
+			ctx.SeeOther("/choose/1/")
 			return nil
 		} else {
-			r.Danger(err)
+			ctx.Danger(err)
 		}
 	}
 
-	return createRootNodeTmpl.Execute(w, r)
+	return createRootNodeTmpl.Execute(w, ctx)
 }

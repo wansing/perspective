@@ -31,7 +31,7 @@ var createTmpl = tmpl(`<h1>Create node below {{ .Selected.Location }}</h1>
 	</form>`)
 
 type createData struct {
-	*Route
+	*context
 	Selected *core.Node // parent
 	Class    string
 	Slug     string
@@ -42,32 +42,32 @@ func (data *createData) SelectChildClass() template.HTML {
 	return SelectChildClass(data.db.ClassRegistry, data.Selected, data.Class)
 }
 
-func create(w http.ResponseWriter, req *http.Request, r *Route, params httprouter.Params) error {
+func create(w http.ResponseWriter, req *http.Request, ctx *context, params httprouter.Params) error {
 
-	selected, err := r.Open(params.ByName("path"))
+	selected, err := ctx.Open(params.ByName("path"))
 	if err != nil {
 		return err
 	}
 
 	// check permission
 
-	if err = selected.RequirePermission(core.Create, r.User); err != nil {
+	if err = selected.RequirePermission(core.Create, ctx.User); err != nil {
 		return err
 	}
 
 	// POST
 
 	if req.Method == http.MethodPost {
-		if err := r.db.AddChild(selected, req.PostFormValue("slug"), req.PostFormValue("class")); err == nil {
-			r.SeeOther("/choose/1%s", selected.Location())
+		if err := ctx.db.AddChild(selected, req.PostFormValue("slug"), req.PostFormValue("class")); err == nil {
+			ctx.SeeOther("/choose/1%s", selected.Location())
 			return nil
 		} else {
-			r.Danger(err)
+			ctx.Danger(err)
 		}
 	}
 
 	return createTmpl.Execute(w, &createData{
-		Route:    r,
+		context:  ctx,
 		Selected: selected,
 	})
 }

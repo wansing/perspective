@@ -27,16 +27,16 @@ var workflowsTmpl = tmpl(`<h1>Workflows</h1>
 	</form>`)
 
 type workflowsData struct {
-	*Route
+	*context
 }
 
 func (data *workflowsData) GetAllWorkflows() ([]*core.Workflow, error) {
 	return data.db.GetAllWorkflows(1000, 0) // assuming there are not more than 1k workflows
 }
 
-func workflows(w http.ResponseWriter, req *http.Request, r *Route, params httprouter.Params) error {
+func workflows(w http.ResponseWriter, req *http.Request, ctx *context, params httprouter.Params) error {
 
-	if !r.IsRootAdmin() {
+	if !ctx.IsRootAdmin() {
 		return errors.New("unauthorized")
 	}
 
@@ -48,16 +48,16 @@ func workflows(w http.ResponseWriter, req *http.Request, r *Route, params httpro
 			return errors.New("missing workflow name")
 		}
 
-		if err := r.db.InsertWorkflow(newWorkflowName); err != nil {
+		if err := ctx.db.InsertWorkflow(newWorkflowName); err != nil {
 			return err
 		}
 
-		r.Success("workflow %s has been created", newWorkflowName)
-		r.SeeOther("/workflows")
+		ctx.Success("workflow %s has been created", newWorkflowName)
+		ctx.SeeOther("/workflows")
 		return nil
 	}
 
 	return workflowsTmpl.Execute(w, &workflowsData{
-		Route: r,
+		context: ctx,
 	})
 }

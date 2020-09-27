@@ -261,7 +261,7 @@ var editTmpl = tmpl(`{{ Breadcrumbs .Selected true }}
 	</script>`)
 
 type editData struct {
-	*Route
+	*context
 	Selected        *core.Node
 	SelectedVersion core.DBVersion
 	State           *core.ReleaseState
@@ -321,9 +321,9 @@ func (data *editData) VersionHistory() (template.HTML, error) {
 	return template.HTML(w.String()), nil
 }
 
-func edit(w http.ResponseWriter, req *http.Request, r *Route, params httprouter.Params) error {
+func edit(w http.ResponseWriter, req *http.Request, ctx *context, params httprouter.Params) error {
 
-	selected, err := r.Open(params.ByName("path"))
+	selected, err := ctx.Open(params.ByName("path"))
 	if err != nil {
 		return err
 	}
@@ -341,7 +341,7 @@ func edit(w http.ResponseWriter, req *http.Request, r *Route, params httprouter.
 		}
 	}
 
-	state, err := selected.ReleaseState(selectedVersion, r.User)
+	state, err := selected.ReleaseState(selectedVersion, ctx.User)
 	if err != nil {
 		return err
 	}
@@ -379,17 +379,17 @@ func edit(w http.ResponseWriter, req *http.Request, r *Route, params httprouter.
 		var uploadFiles = req.MultipartForm.File["upload[]"]
 		defer req.MultipartForm.RemoveAll()
 
-		if err = doEdit(r, selected, selectedVersion, content, versionNote, r.User.Name(), workflowGroupId, deleteFiles, uploadFiles); err == nil {
-			r.SeeOther("/edit/%d%s", 0 /* evaluates to max version number, might be racey */, selected.Location())
+		if err = doEdit(ctx, selected, selectedVersion, content, versionNote, ctx.User.Name(), workflowGroupId, deleteFiles, uploadFiles); err == nil {
+			ctx.SeeOther("/edit/%d%s", 0 /* evaluates to max version number, might be racey */, selected.Location())
 			return nil
 		} else {
-			r.Danger(err)
+			ctx.Danger(err)
 			// keep user input, don't redirect
 		}
 	}
 
 	return editTmpl.Execute(w, &editData{
-		Route:           r,
+		context:         ctx,
 		Selected:        selected,
 		SelectedVersion: selectedVersion,
 		State:           state,
@@ -399,13 +399,13 @@ func edit(w http.ResponseWriter, req *http.Request, r *Route, params httprouter.
 	})
 }
 
-func doEdit(r *Route, selected *core.Node, selectedVersion core.DBVersion, content, versionNote, username string, workflowGroupId int, deleteFiles []string, uploadFiles []*multipart.FileHeader) error {
+func doEdit(ctx *context, selected *core.Node, selectedVersion core.DBVersion, content, versionNote, username string, workflowGroupId int, deleteFiles []string, uploadFiles []*multipart.FileHeader) error {
 
 	// delete files
 
 	for _, name := range deleteFiles {
 		if strings.Contains(content, "("+name+")") { // markdown syntax for image and href
-			r.Danger(fmt.Errorf("%s has not been deleted because it is referenced in the content", name))
+			ctx.Danger(fmt.Errorf("%s has not been deleted because it is referenced in the content", name))
 			continue
 		}
 		if err := selected.Folder().Delete(name); err != nil {
@@ -428,16 +428,10 @@ func doEdit(r *Route, selected *core.Node, selectedVersion core.DBVersion, conte
 	// edit content (versioned)
 
 	if content != selectedVersion.Content() {
-		if err := r.db.Edit(selected, selectedVersion, content, versionNote, username, workflowGroupId); err != nil {
+		if err := ctx.db.Edit(selected, selectedVersion, content, versionNote, username, workflowGroupId); err != nil {
 			return err
 		}
 	}
-	/*
-		if workflowGroupId != selected.WorkflowGroupId() {
-			if err := r.db.SetWorkflowGroup(selected, workflowGroupId); err != nil {
-				return err
-			}
-		}
-	*/
+
 	return nil
 }

@@ -93,7 +93,7 @@ var accessTmpl = tmpl(`<h1>Access Rules of {{ .Selected.Location }}</h1>
 	</form>`)
 
 type accessData struct {
-	*Route
+	*context
 	Selected *core.Node
 }
 
@@ -131,14 +131,14 @@ func (t *accessData) WriteWorkflowOptions(selectedWorkflow *core.Workflow) (temp
 	return template.HTML(buf.String()), nil
 }
 
-func access(w http.ResponseWriter, req *http.Request, r *Route, params httprouter.Params) error {
+func access(w http.ResponseWriter, req *http.Request, ctx *context, params httprouter.Params) error {
 
-	selected, err := r.Open(params.ByName("path"))
+	selected, err := ctx.Open(params.ByName("path"))
 	if err != nil {
 		return err
 	}
 
-	err = selected.RequirePermission(core.Admin, r.User)
+	err = selected.RequirePermission(core.Admin, ctx.User)
 	if err != nil {
 		return err
 	}
@@ -155,11 +155,11 @@ func access(w http.ResponseWriter, req *http.Request, r *Route, params httproute
 		}
 
 		if workflowId == 0 {
-			if err = r.db.UnassignWorkflow(selected, false); err != nil {
+			if err = ctx.db.UnassignWorkflow(selected, false); err != nil {
 				return err
 			}
 		} else {
-			if err = r.db.AssignWorkflow(selected, false, workflowId); err != nil {
+			if err = ctx.db.AssignWorkflow(selected, false, workflowId); err != nil {
 				return err
 			}
 		}
@@ -172,11 +172,11 @@ func access(w http.ResponseWriter, req *http.Request, r *Route, params httproute
 		}
 
 		if childrenWorkflowId == 0 {
-			if err = r.db.UnassignWorkflow(selected, true); err != nil {
+			if err = ctx.db.UnassignWorkflow(selected, true); err != nil {
 				return err
 			}
 		} else {
-			if err = r.db.AssignWorkflow(selected, true, childrenWorkflowId); err != nil {
+			if err = ctx.db.AssignWorkflow(selected, true, childrenWorkflowId); err != nil {
 				return err
 			}
 		}
@@ -195,7 +195,7 @@ func access(w http.ResponseWriter, req *http.Request, r *Route, params httproute
 
 		// anti-lockout
 
-		myAdminRules, err := selected.RequirePermissionRules(core.Admin, r.User)
+		myAdminRules, err := selected.RequirePermissionRules(core.Admin, ctx.User)
 		if err != nil {
 			return err
 		}
@@ -216,7 +216,7 @@ func access(w http.ResponseWriter, req *http.Request, r *Route, params httproute
 		// process removeRules
 
 		for removeGroupId := range removeRules {
-			err = r.db.RemoveAccessRule(selected, removeGroupId)
+			err = ctx.db.RemoveAccessRule(selected, removeGroupId)
 			if err != nil {
 				return fmt.Errorf("error removing rule: %v", err)
 			}
@@ -239,18 +239,18 @@ func access(w http.ResponseWriter, req *http.Request, r *Route, params httproute
 				return err
 			}
 
-			err = r.db.AddAccessRule(selected, addGroupId, core.Permission(addPermission))
+			err = ctx.db.AddAccessRule(selected, addGroupId, core.Permission(addPermission))
 			if err != nil {
 				return fmt.Errorf("error adding rule: %v", err)
 			}
 		}
 
-		r.SeeOther("/access%s", selected.Location())
+		ctx.SeeOther("/access%s", selected.Location())
 		return nil
 	}
 
 	return accessTmpl.Execute(w, &accessData{
-		Route:    r,
+		context:  ctx,
 		Selected: selected,
 	})
 }

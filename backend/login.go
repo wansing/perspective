@@ -25,11 +25,11 @@ var loginTmpl = tmpl(`<h1>Login</h1>
 	</form>`)
 
 type loginData struct {
-	*Route
+	*context
 	Email string
 }
 
-func login(w http.ResponseWriter, req *http.Request, r *Route, params httprouter.Params) error {
+func login(w http.ResponseWriter, req *http.Request, ctx *context, params httprouter.Params) error {
 
 	var email string
 
@@ -38,18 +38,18 @@ func login(w http.ResponseWriter, req *http.Request, r *Route, params httprouter
 		email = req.PostFormValue("email")
 		password := req.PostFormValue("password")
 
-		err := r.Login(email, password)
+		err := ctx.Login(email, password)
 		if err == nil {
-			r.SeeOther("/")
+			ctx.SeeOther("/")
 			return nil
 		} else {
-			r.Danger(ErrLogin)
+			ctx.Danger(ErrLogin)
 			// keep POST data for email field
 		}
 	}
 
 	return loginTmpl.Execute(w, &loginData{
-		Route: r,
-		Email: email,
+		context: ctx,
+		Email:   email,
 	})
 }

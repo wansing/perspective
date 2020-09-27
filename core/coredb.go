@@ -208,6 +208,10 @@ func (c *CoreDB) Open(user DBUser, parent *Node, queue *Queue) (*Node, error) {
 		return nil, errors.New("queue too deep")
 	}
 
+	if queue.Len() == 0 {
+		return parent, nil // return parent, not nil!
+	}
+
 	var parentId = 0
 	if parent != nil {
 		parentId = parent.Id()
