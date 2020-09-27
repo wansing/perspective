@@ -27,6 +27,7 @@ type Route struct {
 	*Request
 	*Node                        // current node
 	*Version                     // version of current node
+	Next     []NodeVersion       // executed nodes
 	Recursed map[int]interface{} // avoids double recursion
 	RootUrl  string              // "/" for main route, "/" or include base for included routes, TODO use it
 	Vars     map[string]string   // node output
@@ -192,10 +193,8 @@ func (r *Route) pop(parent *Node) error {
 
 	// setup context
 
-	defer func(oldNode *Node, oldVersion *Version) {
-		r.Node = oldNode
-		r.Version = oldVersion
-	}(r.Node, r.Version)
+	var oldNode = r.Node
+	var oldVersion = r.Version
 
 	r.Node = n
 	r.Version = v
@@ -205,6 +204,10 @@ func (r *Route) pop(parent *Node) error {
 	if err := n.Do(r); err != nil {
 		r.Danger(err)
 	}
+
+	r.Node = oldNode
+	r.Version = oldVersion
+	r.Next = append([]NodeVersion{{n, v}}, r.Next...)
 
 	return nil
 }

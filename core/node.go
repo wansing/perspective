@@ -66,6 +66,11 @@ func (NoVersion) WorkflowGroupId() int {
 	return 0
 }
 
+type NodeVersion struct {
+	*Node
+	*Version
+}
+
 // Node is independent from Route.
 type Node struct {
 	DBNode
@@ -135,15 +140,7 @@ func (n *Node) Id() int {
 }
 
 func (n *Node) GetChildren(user DBUser, order Order, limit, offset int) ([]*Node, error) {
-	return n.getChildren(n.db.GetChildren, user, order, limit, offset)
-}
-
-func (n *Node) GetReleasedChildren(user DBUser, order Order, limit, offset int) ([]*Node, error) {
-	return n.getChildren(n.db.GetReleasedChildren, user, order, limit, offset)
-}
-
-func (n *Node) getChildren(f func(id int, order Order, limit, offset int) ([]DBNodeVersion, error), user DBUser, order Order, limit, offset int) ([]*Node, error) {
-	var children, err = f(n.Id(), order, limit, offset)
+	var children, err = n.db.GetChildren(n.Id(), order, limit, offset)
 	if err != nil {
 		return nil, err
 	}
@@ -154,6 +151,26 @@ func (n *Node) getChildren(f func(id int, order Order, limit, offset int) ([]DBN
 			continue
 		}
 		result = append(result, node)
+	}
+	return result, nil
+}
+
+func (n *Node) GetReleasedChildren(user DBUser, order Order, limit, offset int) ([]NodeVersion, error) {
+	var children, err = n.db.GetReleasedChildren(n.Id(), order, limit, offset)
+	if err != nil {
+		return nil, err
+	}
+	var result = make([]NodeVersion, 0, len(children))
+	for _, c := range children {
+		node := n.db.NewNode(n, c)
+		if err := node.RequirePermission(Read, user); err != nil {
+			continue
+		}
+		version := NewVersion(c)
+		result = append(result, NodeVersion{
+			Node:    node,
+			Version: version,
+		})
 	}
 	return result, nil
 }

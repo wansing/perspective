@@ -141,7 +141,7 @@ func NewNodeDB(db *sql.DB) *NodeDB {
 	nodeDB.DB = db
 	nodeDB.calculateMWGZV = mustPrepare(db, "SELECT COALESCE(max(versionNr), 0) FROM version WHERE version.id = ? AND version.workflow_group = 0")
 	nodeDB.countChildren = mustPrepare(db, "SELECT COUNT(1) FROM element WHERE parentId = ?")
-	nodeDB.countReleased = mustPrepare(db, "SELECT COUNT(1) FROM element WHERE parentId = ? AND maxWGZeroVersion > 0 AND ts_created > ?")
+	nodeDB.countReleased = mustPrepare(db, "SELECT COUNT(1) FROM element WHERE parentId = ? AND maxWGZeroVersion > 0")
 
 	nodeDB.getChildrenAlphabetically = mustPrepare(db, "SELECT e.id, e.parentId, e.slug, e.class, e.ts_created, e.maxVersion, e.maxWGZeroVersion FROM element e WHERE e.parentId = ? ORDER BY slug LIMIT ? OFFSET ?")
 	nodeDB.getChildrenChronologicallyDesc = mustPrepare(db, "SELECT e.id, e.parentId, e.slug, e.class, e.ts_created, e.maxVersion, e.maxWGZeroVersion FROM element e WHERE e.parentId = ? ORDER BY ts_created DESC LIMIT ? OFFSET ?")
@@ -263,30 +263,19 @@ func (db *NodeDB) GetVersion(id int, versionNo int) (core.DBVersion, error) {
 }
 
 func (db *NodeDB) GetChildren(id int, order core.Order, limit, offset int) ([]core.DBNodeVersion, error) {
+
+	var stmt *sql.Stmt
+
 	switch order {
 	case core.AlphabeticallyAsc:
-		return db.getChildren(db.getChildrenAlphabetically, id, limit, offset)
+		stmt = db.getChildrenAlphabetically
 	case core.ChronologicallyDesc:
-		return db.getChildren(db.getChildrenChronologicallyDesc, id, limit, offset)
+		stmt = db.getChildrenChronologicallyDesc
 	default:
 		return nil, fmt.Errorf("unknown order %d", order)
 	}
-}
 
-func (db *NodeDB) GetReleasedChildren(id int, order core.Order, limit, offset int) ([]core.DBNodeVersion, error) {
-	switch order {
-	case core.AlphabeticallyAsc:
-		return db.getChildrenNV(db.getReleasedChildrenAlphabetically, id, limit, offset)
-	case core.ChronologicallyDesc:
-		return db.getChildrenNV(db.getReleasedChildrenChronologicallyDesc, id, limit, offset)
-	default:
-		return nil, fmt.Errorf("unknown order %d", order)
-	}
-}
-
-func (db *NodeDB) getChildren(stmt *sql.Stmt, args ...interface{}) ([]core.DBNodeVersion, error) {
-
-	rows, err := stmt.Query(args...)
+	rows, err := stmt.Query(id, limit, offset)
 	if err != nil {
 		return nil, err
 	}
@@ -306,9 +295,20 @@ func (db *NodeDB) getChildren(stmt *sql.Stmt, args ...interface{}) ([]core.DBNod
 	return children, nil
 }
 
-func (db *NodeDB) getChildrenNV(stmt *sql.Stmt, args ...interface{}) ([]core.DBNodeVersion, error) {
+func (db *NodeDB) GetReleasedChildren(id int, order core.Order, limit, offset int) ([]core.DBNodeVersion, error) {
 
-	rows, err := stmt.Query(args...)
+	var stmt *sql.Stmt
+
+	switch order {
+	case core.AlphabeticallyAsc:
+		stmt = db.getReleasedChildrenAlphabetically
+	case core.ChronologicallyDesc:
+		stmt = db.getReleasedChildrenChronologicallyDesc
+	default:
+		return nil, fmt.Errorf("unknown order %d", order)
+	}
+
+	rows, err := stmt.Query(id, limit, offset)
 	if err != nil {
 		return nil, err
 	}

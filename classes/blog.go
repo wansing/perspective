@@ -1,5 +1,3 @@
-//+build ignore
-
 package classes
 
 // TODO rss/atom feed with pagination https://stackoverflow.com/questions/1301392/pagination-in-feeds-like-atom-and-rss
@@ -25,14 +23,14 @@ func init() {
 		{{define "metadata"}}
 			<div class="blog-blogentry-date">
 				geschrieben am {{.Request.FormatDateTime .Node.TsCreated}}
-				{{with .Node.Tags}}
+				{{with .NodeVersion.Tags}}
 					&middot; Tags:
 					{{range $i, $tag := .}}
 						{{- if $i}},{{end}}
 						{{$tag -}}
 					{{end}}
 				{{end}}
-				{{with .Node.Timestamps}}
+				{{with .NodeVersion.Timestamps}}
 					&middot; findet statt am:
 					{{range .}}
 						{{$.Request.FormatDateTime .}}
@@ -41,7 +39,7 @@ func init() {
 			</div>
 		{{end}}
 
-		{{if .Node.Next}}
+		{{if .T.Next}}
 			{{template "metadata" .T.Next}}
 			{{.Get "body"}}
 			<div class="blog-blogentry-back">
@@ -86,7 +84,7 @@ func init() {
 type Blog struct {
 	core.Base
 	Children  []*blogChild
-	Next      blogNode
+	Next      *blogNode // pointer so it can be nil
 	page      int // starting with 1
 	PageLinks []template.HTML
 	pages     int
@@ -97,7 +95,7 @@ type Blog struct {
 
 // Node plus Request, so we can localize or internationalize things
 type blogNode struct {
-	*core.Node
+	core.NodeVersion
 	*core.Request
 }
 
@@ -120,7 +118,7 @@ func (t *Blog) Do(r *core.Route) error {
 
 	if r.Queue.PopIf("page") {
 		pageStr, _ := r.Queue.Pop()
-		t.page, _ = strconv.Atoi(pageStr.Key)
+		t.page, _ = strconv.Atoi(pageStr)
 		if t.page == 1 {
 			r.Set(
 				"head",
@@ -149,7 +147,7 @@ func (t *Blog) Do(r *core.Route) error {
 	if childrenCount, err := r.Node.CountReleasedChildren(); err == nil {
 		t.pages = int(math.Ceil(float64(childrenCount) / float64(t.perPage)))
 	} else {
-		t.pages = 1
+		return err
 	}
 
 	if t.page < 1 {
@@ -165,10 +163,10 @@ func (t *Blog) Do(r *core.Route) error {
 		t.ReadMore = "Read more"
 	}
 
-	if r.Node.Next != nil {
-		t.Next = blogNode{
-			Node:    r.Node.Next,
-			Request: r.Request,
+	if len(r.Next) > 0 {
+		t.Next = &blogNode{
+			NodeVersion: r.Next[0],
+			Request:     r.Request,
 		}
 	} else {
 
@@ -184,7 +182,8 @@ func (t *Blog) Do(r *core.Route) error {
 			// render body
 
 			childRoute := &core.Route{
-				Node:    child,
+				Node:    child.Node,
+				Version: child.Version,
 				Request: r.Request,
 				Queue:   core.NewQueue(""),
 			}
@@ -207,8 +206,8 @@ func (t *Blog) Do(r *core.Route) error {
 
 			t.Children = append(t.Children, &blogChild{
 				blogNode: blogNode{
-					Node:    child,
-					Request: r.Request,
+					NodeVersion: child,
+					Request:     r.Request,
 				},
 				Body: template.HTML(bodyBytes),
 				Cut:  cut,
