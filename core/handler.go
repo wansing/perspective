@@ -29,7 +29,7 @@ func (w *responseWriter) Write(b []byte) (int, error) {
 }
 
 // WriteHeader forwards to the real ResponseWriter.
-// It prepends the path, so subrouters like Routed.Handler do HTTP redirects easily (e.g. to a cleaned version of the path, or to a version with removed or added trailing slashes).
+// It prepends the path, so subrouters like Handler.Handler do HTTP redirects easily (e.g. to a cleaned version of the path, or to a version with removed or added trailing slashes).
 func (w *responseWriter) WriteHeader(statusCode int) {
 	if location := w.Header().Get("Location"); location != "" {
 		w.Header().Set("Location", w.prefix+location)
@@ -37,13 +37,16 @@ func (w *responseWriter) WriteHeader(statusCode int) {
 	w.writer.WriteHeader(statusCode)
 }
 
-// Routed adapts an http.Handler to our system. It should not have child nodes because it passes the whole queue to the handler.
+// Handler adapts an http.Handler to our system. It should not have child nodes because it passes the whole queue to the handler.
 type Handler struct {
-	Base
 	http.Handler
 }
 
-// Empties the queue, creates an http.Request struct and an http.ResponseWriter, calls Routed.Handler.ServeHTTP and writes the result to the "body" variable.
+func (t *Handler) AdditionalSlugs() []string {
+	return nil
+}
+
+// Empties the queue, creates an http.Request struct and an http.ResponseWriter, calls Handler.Handler.ServeHTTP and writes the result to the "body" variable.
 func (t *Handler) Do(r *Route) error {
 
 	var path = r.Queue.String()
