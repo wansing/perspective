@@ -41,7 +41,7 @@ var monthNamesDe = strings.NewReplacer(
 type Request struct {
 	db   *CoreDB // unexported, so templates can't access it
 	Path string  // absolute, without trailing slash
-	User DBUser
+	User DBUser  // must not be nil
 
 	// http
 	writer  http.ResponseWriter
@@ -66,6 +66,7 @@ func (c *CoreDB) NewRequest(w http.ResponseWriter, httpreq *http.Request) *Reque
 
 	var req = &Request{
 		db:        c,
+		User:      Guest{},
 		writer:    w,
 		request:   httpreq,
 		globals:   make(map[string]string),
@@ -90,6 +91,7 @@ func (c *CoreDB) NewRequest(w http.ResponseWriter, httpreq *http.Request) *Reque
 
 func newDummyRequest() *Request {
 	return &Request{
+		User:      Guest{},
 		writer:    nil,
 		request:   nil,
 		globals:   make(map[string]string),
@@ -163,7 +165,7 @@ func (req *Request) Login(mail string, enteredPass string) error {
 }
 
 func (req *Request) LoggedIn() bool {
-	return req.User != nil
+	return req.User.Id() != 0
 }
 
 // Logout removes the user id from the session and calls req.Cleanup().
