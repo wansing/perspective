@@ -168,7 +168,8 @@ func (r *Route) pop(parent *Node) error {
 		var slug, _ = r.Queue.Pop()
 		n, err = r.Request.db.GetNodeBySlug(parent, slug)
 		if err != nil {
-			// resort to default
+			// restore queue and resort to default
+			r.Queue.push(slug)
 			n, err = r.Request.db.GetNodeBySlug(parent, "default")
 			if err != nil {
 				return fmt.Errorf("pop (%d, %s): %w", parent.ID(), slug, err) // neither slug nor default were found
