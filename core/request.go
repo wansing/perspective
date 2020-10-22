@@ -160,12 +160,12 @@ func (req *Request) Login(mail string, enteredPass string) error {
 		return err // is ErrAuth if mail or enteredPass is wrong
 	}
 	req.Success("Welcome %s!", req.User.Name())
-	req.db.SessionManager.Put(req.request.Context(), "uid", req.User.Id())
+	req.db.SessionManager.Put(req.request.Context(), "uid", req.User.ID())
 	return nil
 }
 
 func (req *Request) LoggedIn() bool {
-	return req.User.Id() != 0
+	return req.User.ID() != 0
 }
 
 // Logout removes the user id from the session and calls req.Cleanup().
@@ -219,7 +219,7 @@ func (req *Request) IsHTML() bool {
 // IsRootAdmin returns true if the user has admin permission for the root node.
 func (req *Request) IsRootAdmin() bool {
 	// node id 1 is more robust than Node.Parent.Parent..., which relies on the consistency of the Parent field
-	if err := req.db.requireRule(Admin, RootId, req.User, nil); err == nil {
+	if err := req.db.requireRule(Admin, RootID, req.User, nil); err == nil {
 		return true
 	} else {
 		return false

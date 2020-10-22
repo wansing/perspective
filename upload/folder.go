@@ -15,7 +15,7 @@ import (
 // one Folder for one node
 type Folder interface {
 	Delete(filename string) error
-	NodeId() int
+	NodeID() int
 	Files() ([]os.FileInfo, error)
 	HasFile(filename string) (bool, error)
 	Upload(filename string, src io.Reader) error
@@ -34,10 +34,10 @@ func CleanFilename(filename string) (string, error) {
 }
 
 // Creates an HMAC of a resized uploaded file. UploadStore implementations can use it to prevent DoS attacks on image resizing.
-func HMAC(secret []byte, nodeId int, filename string, w int, h int, ts int64) string {
+func HMAC(secret []byte, nodeID int, filename string, w int, h int, ts int64) string {
 
 	buf := make([]byte, 32)
-	binary.PutVarint(buf[0:], int64(nodeId))
+	binary.PutVarint(buf[0:], int64(nodeID))
 	binary.PutVarint(buf[8:], ts)
 	binary.PutVarint(buf[16:], int64(w))
 	binary.PutVarint(buf[24:], int64(h))

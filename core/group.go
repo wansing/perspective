@@ -1,7 +1,7 @@
 package core
 
 type DBGroup interface {
-	Id() int
+	ID() int
 	Name() string
 	HasMember(u DBUser) (bool, error)
 	Members() (map[int]interface{}, error)

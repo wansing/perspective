@@ -151,12 +151,12 @@ func rewriteHTML(reqPath string, node *core.Node, input io.Reader) (string, erro
 
 				ts := time.Now().Unix()
 
-				filename += fmt.Sprintf("?w=%d&h=%d&ts=%d&sig=%s", w, h, ts, node.HMAC(location.NodeId(), filename, w, h, ts))
+				filename += fmt.Sprintf("?w=%d&h=%d&ts=%d&sig=%s", w, h, ts, node.HMAC(location.NodeID(), filename, w, h, ts))
 			}
 
 			// always prepend upload folder
 
-			domNode.Attr[attrIdx].Val = fmt.Sprintf("/upload/%d/%s", location.NodeId(), filename)
+			domNode.Attr[attrIdx].Val = fmt.Sprintf("/upload/%d/%s", location.NodeID(), filename)
 
 			return true, nil
 

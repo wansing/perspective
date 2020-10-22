@@ -41,7 +41,7 @@ func revoke(w http.ResponseWriter, req *http.Request, ctx *context, params httpr
 		return errors.New("no revoke group")
 	}
 
-	if err = ctx.db.SetWorkflowGroup(selected, selectedVersion, (*revokeToGroup).Id()); err != nil {
+	if err = ctx.db.SetWorkflowGroup(selected, selectedVersion, (*revokeToGroup).ID()); err != nil {
 		return err
 	}
 

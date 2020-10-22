@@ -10,7 +10,7 @@ type ReleaseState struct {
 	isMember []bool    // cached, refers to groups
 }
 
-func GetReleaseState(workflow *Workflow, workflowGroupId int, user DBUser) (*ReleaseState, error) {
+func GetReleaseState(workflow *Workflow, workflowGroupID int, user DBUser) (*ReleaseState, error) {
 
 	wfGroups, err := workflow.Groups()
 	if err != nil {
@@ -21,7 +21,7 @@ func GetReleaseState(workflow *Workflow, workflowGroupId int, user DBUser) (*Rel
 
 	var index = 0 // in case of an inconsistency, the first group is default
 	for i, group := range groups {
-		if group.Id() == workflowGroupId {
+		if group.ID() == workflowGroupID {
 			index = i
 			break
 		}
@@ -80,7 +80,7 @@ func (rs *ReleaseState) ReleaseToGroup() *DBGroup {
 func (rs *ReleaseState) SaveGroups() []DBGroup {
 	var saveGroups = []DBGroup{}
 	for i, g := range rs.groups {
-		if g.Id() != 0 && rs.isMember[i] {
+		if g.ID() != 0 && rs.isMember[i] {
 			saveGroups = append(saveGroups, g)
 			continue
 		}
@@ -93,9 +93,9 @@ func (rs *ReleaseState) SaveGroups() []DBGroup {
 }
 
 // IsSaveGroup returns whether a given group id is a "save group".
-func (rs *ReleaseState) IsSaveGroup(groupId int) bool {
+func (rs *ReleaseState) IsSaveGroup(groupID int) bool {
 	for _, sg := range rs.SaveGroups() {
-		if sg.Id() == groupId {
+		if sg.ID() == groupID {
 			return true
 		}
 	}
@@ -117,7 +117,7 @@ func (rs *ReleaseState) SuggestedSaveGroup() *DBGroup {
 
 	// prefer current workflow group
 	for _, g := range saveGroups {
-		if g.Id() == rs.WorkflowGroup().Id() {
+		if g.ID() == rs.WorkflowGroup().ID() {
 			return &g
 		}
 	}

@@ -6,7 +6,7 @@ import (
 )
 
 type DBWorkflow interface {
-	Id() int
+	ID() int
 	Name() string
 	Groups() ([]int, error) // can be empty
 }
@@ -33,13 +33,13 @@ func (w *Workflow) Groups() ([]DBGroup, error) {
 
 	if !w.groupsLoaded {
 
-		groupIds, err := w.DBWorkflow.Groups()
+		groupIDs, err := w.DBWorkflow.Groups()
 		if err != nil {
 			return nil, err
 		}
 
-		for _, groupId := range groupIds {
-			group, err := w.groupDB.GetGroup(groupId)
+		for _, groupID := range groupIDs {
+			group, err := w.groupDB.GetGroup(groupID)
 			if err != nil {
 				return nil, err
 			}
@@ -90,11 +90,11 @@ func (c *CoreDB) GetWorkflow(id int) (*Workflow, error) {
 }
 
 // UpdateWorkflow shadows WorkflowDB.UpdateWorkflow.
-func (c *CoreDB) UpdateWorkflow(w DBWorkflow, groupIds []int) error {
-	for _, groupId := range groupIds {
-		if groupId == 0 {
+func (c *CoreDB) UpdateWorkflow(w DBWorkflow, groupIDs []int) error {
+	for _, groupID := range groupIDs {
+		if groupID == 0 {
 			return errors.New("all users is not allowed in workflow")
 		}
 	}
-	return c.WorkflowDB.UpdateWorkflow(w, groupIds)
+	return c.WorkflowDB.UpdateWorkflow(w, groupIDs)
 }

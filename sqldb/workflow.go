@@ -15,7 +15,7 @@ type workflow struct {
 	groupsLoaded bool  // lazy loading
 }
 
-func (w *workflow) Id() int {
+func (w *workflow) ID() int {
 	return w.id
 }
 
@@ -36,11 +36,11 @@ func (w *workflow) Groups() ([]int, error) {
 		defer rows.Close()
 
 		for rows.Next() {
-			var groupId int
-			if err = rows.Scan(&groupId); err != nil {
+			var groupID int
+			if err = rows.Scan(&groupID); err != nil {
 				return nil, err
 			}
-			w.groups = append(w.groups, groupId)
+			w.groups = append(w.groups, groupID)
 		}
 
 		w.groupsLoaded = true
@@ -56,13 +56,13 @@ func (db *WorkflowDB) Delete(w core.DBWorkflow) error {
 		return err
 	}
 
-	_, err = tx.Stmt(db.clear).Exec(w.Id())
+	_, err = tx.Stmt(db.clear).Exec(w.ID())
 	if err != nil {
 		tx.Rollback()
 		return err
 	}
 
-	_, err = tx.Stmt(db.delete).Exec(w.Id())
+	_, err = tx.Stmt(db.delete).Exec(w.ID())
 	if err != nil {
 		tx.Rollback()
 		return err
@@ -166,14 +166,14 @@ func (db *WorkflowDB) UpdateWorkflow(w core.DBWorkflow, groups []int) error {
 		return err
 	}
 
-	_, err = tx.Stmt(db.clear).Exec(w.Id())
+	_, err = tx.Stmt(db.clear).Exec(w.ID())
 	if err != nil {
 		tx.Rollback()
 		return err
 	}
 
 	for position, group := range groups {
-		_, err = tx.Stmt(db.push).Exec(w.Id(), position, group)
+		_, err = tx.Stmt(db.push).Exec(w.ID(), position, group)
 		if err != nil {
 			tx.Rollback()
 			return err

@@ -2,24 +2,24 @@ package core
 
 // An IndexDB stores timestamps and tags which are defined in node content.
 type IndexDB interface {
-	SetTags(parentId int, nodeId int, nodeTsChanged int64, tags []string) error
-	SetTimestamps(parentId int, nodeId int, timestamps []int64) error
-	RecentChildrenByTag(parentId int, now int64, tag string, limit, offset int) ([]int, error)   // uses tsChanged of max released version
-	UpcomingChildrenByTag(parentId int, now int64, tag string, limit, offset int) ([]int, error) // uses timestamp
+	SetTags(parentID int, nodeID int, nodeTsChanged int64, tags []string) error
+	SetTimestamps(parentID int, nodeID int, timestamps []int64) error
+	RecentChildrenByTag(parentID int, now int64, tag string, limit, offset int) ([]int, error)   // uses tsChanged of max released version
+	UpcomingChildrenByTag(parentID int, now int64, tag string, limit, offset int) ([]int, error) // uses timestamp
 }
 
-// SetTags calls IndexDB.SetTags using n.ParentId(), n.Id() and n.TsChanged().
+// SetTags calls IndexDB.SetTags using n.ParentID(), n.ID() and n.TsChanged().
 // Ensure that you set tsChanged before.
 func (n *Node) SetTags(tags []string) error {
 	v, err := n.GetVersion(n.MaxWGZeroVersionNo())
 	if err != nil {
 		return err
 	}
-	return n.db.SetTags(n.ParentId(), n.Id(), v.TsChanged(), tags)
+	return n.db.SetTags(n.ParentID(), n.ID(), v.TsChanged(), tags)
 }
 
 func (n *Node) SetTimestamps(timestamps []int64) error {
-	return n.db.SetTimestamps(n.ParentId(), n.Id(), timestamps)
+	return n.db.SetTimestamps(n.ParentID(), n.ID(), timestamps)
 }
 
 func (n *Node) RecentChildrenByTag(user DBUser, now int64, tag string, limit, offset int) ([]*Node, error) {
@@ -31,13 +31,13 @@ func (n *Node) UpcomingChildrenByTag(user DBUser, now int64, tag string, limit, 
 }
 
 func (n *Node) childrenByTag(f func(id int, now int64, tag string, limit, offset int) ([]int, error), user DBUser, now int64, tag string, limit, offset int) ([]*Node, error) {
-	var nodeIds, err = f(n.Id(), now, tag, limit, offset)
+	var nodeIDs, err = f(n.ID(), now, tag, limit, offset)
 	if err != nil {
 		return nil, err
 	}
-	var nodes = make([]*Node, 0, len(nodeIds))
-	for _, nodeId := range nodeIds {
-		dbNode, err := n.db.GetNodeById(nodeId)
+	var nodes = make([]*Node, 0, len(nodeIDs))
+	for _, nodeID := range nodeIDs {
+		dbNode, err := n.db.GetNodeByID(nodeID)
 		if err != nil {
 			return nil, err
 		}

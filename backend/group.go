@@ -37,14 +37,14 @@ type groupData struct {
 
 func (data *groupData) Members() ([]core.DBUser, error) {
 
-	var memberIds, err = data.Selected.Members()
+	var memberIDs, err = data.Selected.Members()
 	if err != nil {
 		return nil, err
 	}
 
 	var members = []core.DBUser{}
-	for memberId := range memberIds { // map: group id -> interface{}
-		member, err := data.db.GetUser(memberId)
+	for memberID := range memberIDs { // map: group id -> interface{}
+		member, err := data.db.GetUser(memberID)
 		if err != nil {
 			return nil, err
 		}
@@ -60,27 +60,27 @@ func group(w http.ResponseWriter, req *http.Request, ctx *context, params httpro
 		return errors.New("unauthorized")
 	}
 
-	selectedId, err := strconv.Atoi(params.ByName("id"))
+	selectedID, err := strconv.Atoi(params.ByName("id"))
 	if err != nil {
 		return err
 	}
 
-	selected, err := ctx.db.GetGroup(selectedId)
+	selected, err := ctx.db.GetGroup(selectedID)
 	if err != nil {
 		return err
 	}
 
 	if req.Method == http.MethodPost {
 
-		if addUserId := req.PostFormValue("user_id"); addUserId != "" {
+		if addUserID := req.PostFormValue("user_id"); addUserID != "" {
 
-			userId, err := strconv.Atoi(addUserId)
+			userID, err := strconv.Atoi(addUserID)
 			if err != nil {
 				ctx.Danger(err)
 				return nil
 			}
 
-			user, err := ctx.db.GetUser(userId)
+			user, err := ctx.db.GetUser(userID)
 			if err != nil {
 				return err
 			}
@@ -90,7 +90,7 @@ func group(w http.ResponseWriter, req *http.Request, ctx *context, params httpro
 			}
 
 			ctx.Success("user %s has been added to group %s", user.Name(), selected.Name())
-			ctx.SeeOther("/group/%d", selected.Id())
+			ctx.SeeOther("/group/%d", selected.ID())
 			return nil
 		}
 	}

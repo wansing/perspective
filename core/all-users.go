@@ -7,7 +7,7 @@ import (
 // AllUsers implements Group and represents all users, including the public.
 type AllUsers struct{}
 
-func (AllUsers) Id() int {
+func (AllUsers) ID() int {
 	return 0
 }
 

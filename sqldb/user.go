@@ -31,7 +31,7 @@ func (u *user) compare(password string) bool {
 	return bcrypt.CompareHashAndPassword(u.hash, []byte(password)) == nil
 }
 
-func (u *user) Id() int {
+func (u *user) ID() int {
 	return u.id
 }
 
@@ -84,7 +84,7 @@ func (db *UserDB) ChangePassword(u core.DBUser, old, new string) error {
 }
 
 func (db *UserDB) Delete(u core.DBUser) error {
-	_, err := db.delete.Exec(u.Id())
+	_, err := db.delete.Exec(u.ID())
 	return err
 }
 
@@ -168,7 +168,7 @@ func (db *UserDB) SetPassword(u core.DBUser, password string) error {
 		return errors.New("no password given")
 	}
 
-	if u.Id() == 0 {
+	if u.ID() == 0 {
 		return errors.New("can't set password of user 0")
 	}
 
@@ -177,7 +177,7 @@ func (db *UserDB) SetPassword(u core.DBUser, password string) error {
 		return err
 	}
 
-	_, err = db.setPassword.Exec(hash, u.Id())
+	_, err = db.setPassword.Exec(hash, u.ID())
 	if err != nil {
 		return err
 	}

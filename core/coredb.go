@@ -70,24 +70,24 @@ func (c *CoreDB) Init(sessionStore scs.Store, cookiePath string) error {
 }
 
 // AddAccessRule shadows AccessDB.InsertAccessRule.
-func (c *CoreDB) AddAccessRule(e *Node, groupId int, perm Permission) error {
-	var group, err = c.GroupDB.GetGroup(groupId)
+func (c *CoreDB) AddAccessRule(e *Node, groupID int, perm Permission) error {
+	var group, err = c.GroupDB.GetGroup(groupID)
 	if err != nil {
 		return err
 	}
-	return c.AccessDB.InsertAccessRule(e.Id(), group.Id(), int(perm))
+	return c.AccessDB.InsertAccessRule(e.ID(), group.ID(), int(perm))
 }
 
 // RemoveAccessRule shadows AccessDB.RemoveAccessRule.
-func (c *CoreDB) RemoveAccessRule(e *Node, groupId int) error {
+func (c *CoreDB) RemoveAccessRule(e *Node, groupID int) error {
 	// not checking if the group exists because not a lot can go wrong
-	return c.AccessDB.RemoveAccessRule(e.Id(), groupId)
+	return c.AccessDB.RemoveAccessRule(e.ID(), groupID)
 }
 
 // Edit adds a version to the receiver node.
-func (c *CoreDB) Edit(n *Node, v DBVersion, newContent, newVersionNote, username string, workflowGroupId int) error {
+func (c *CoreDB) Edit(n *Node, v DBVersion, newContent, newVersionNote, username string, workflowGroupID int) error {
 	if v.Content() != newContent {
-		if err := c.AddVersion(n.DBNode, newContent, fmt.Sprintf("[%s] %s", username, strings.TrimSpace(newVersionNote)), workflowGroupId); err != nil {
+		if err := c.AddVersion(n.DBNode, newContent, fmt.Sprintf("[%s] %s", username, strings.TrimSpace(newVersionNote)), workflowGroupID); err != nil {
 			return err
 		}
 	}
@@ -101,35 +101,35 @@ func (c *CoreDB) GetAllWorkflowAssignments() (map[int]map[bool]*Workflow, error)
 		return nil, err
 	}
 	var all = make(map[int]map[bool]*Workflow)
-	for nodeId, entry := range base {
-		if _, ok := all[nodeId]; !ok {
-			all[nodeId] = make(map[bool]*Workflow)
+	for nodeID, entry := range base {
+		if _, ok := all[nodeID]; !ok {
+			all[nodeID] = make(map[bool]*Workflow)
 		}
-		for childrenOnly, workflowId := range entry {
-			workflow, err := c.GetWorkflow(workflowId)
+		for childrenOnly, workflowID := range entry {
+			workflow, err := c.GetWorkflow(workflowID)
 			if err != nil {
 				return nil, err
 			}
-			all[nodeId][childrenOnly] = workflow
+			all[nodeID][childrenOnly] = workflow
 		}
 	}
 	return all, nil
 }
 
 func (c *CoreDB) GetNodeBySlug(parent *Node, slug string) (*Node, error) {
-	dbNode, err := c.NodeDB.GetNodeBySlug(parent.Id(), slug)
+	dbNode, err := c.NodeDB.GetNodeBySlug(parent.ID(), slug)
 	if err != nil {
 		return nil, err
 	}
 	return c.NewNode(parent, dbNode), nil
 }
 
-// InternalUrlByNodeId determines the internal path of the node with the given id.
-func (c *CoreDB) InternalPathByNodeId(id int) (string, error) {
-	return c.internalPathByNodeId(id, 16)
+// InternalUrlByNodeID determines the internal path of the node with the given id.
+func (c *CoreDB) InternalPathByNodeID(id int) (string, error) {
+	return c.internalPathByNodeID(id, 16)
 }
 
-func (c *CoreDB) internalPathByNodeId(id int, maxDepth int) (string, error) {
+func (c *CoreDB) internalPathByNodeID(id int, maxDepth int) (string, error) {
 	var slugs = []string{}
 	for {
 		if maxDepth--; maxDepth < 0 {
@@ -138,12 +138,12 @@ func (c *CoreDB) internalPathByNodeId(id int, maxDepth int) (string, error) {
 		if id == 1 { // root
 			break
 		}
-		n, err := c.GetNodeById(id)
+		n, err := c.GetNodeByID(id)
 		if err != nil {
 			return "", err
 		}
 		slugs = append([]string{n.Slug()}, slugs...)
-		id = n.ParentId()
+		id = n.ParentID()
 	}
 
 	return "/" + strings.Join(slugs, "/"), nil
@@ -151,7 +151,7 @@ func (c *CoreDB) internalPathByNodeId(id int, maxDepth int) (string, error) {
 
 // requireRule checks if a node with a given id has a rule which gives permission to the user.
 // If permittingRules is not nil, then it is populated.
-func (c *CoreDB) requireRule(required Permission, nodeId int, u DBUser, permittingRules *map[int]map[int]interface{}) error {
+func (c *CoreDB) requireRule(required Permission, nodeID int, u DBUser, permittingRules *map[int]map[int]interface{}) error {
 
 	if u == nil && required > Read {
 		return ErrUnauthorized
@@ -169,23 +169,23 @@ func (c *CoreDB) requireRule(required Permission, nodeId int, u DBUser, permitti
 	}
 	groups = append(groups, AllUsers{})
 
-	nodeRules, err := c.GetAccessRules(nodeId)
+	nodeRules, err := c.GetAccessRules(nodeID)
 	if err != nil {
 		return err
 	}
 
 	for _, group := range groups {
-		if myPermission, ok := nodeRules[group.Id()]; ok {
+		if myPermission, ok := nodeRules[group.ID()]; ok {
 			var myPerm = Permission(myPermission)
 			if !myPerm.Valid() {
 				return errors.New("invalid permission")
 			}
 			if myPerm >= required {
 				if permittingRules != nil {
-					if (*permittingRules)[nodeId] == nil {
-						(*permittingRules)[nodeId] = make(map[int]interface{})
+					if (*permittingRules)[nodeID] == nil {
+						(*permittingRules)[nodeID] = make(map[int]interface{})
 					}
-					(*permittingRules)[nodeId][group.Id()] = struct{}{}
+					(*permittingRules)[nodeID][group.ID()] = struct{}{}
 				} else {
 					return nil // if permittingRules are not requested, then we're done now
 				}
@@ -212,9 +212,9 @@ func (c *CoreDB) Open(user DBUser, parent *Node, queue *Queue) (*Node, error) {
 		return parent, nil // return parent, not nil!
 	}
 
-	var parentId = 0
+	var parentID = 0
 	if parent != nil {
-		parentId = parent.Id()
+		parentID = parent.ID()
 	}
 
 	slug, ok := queue.Pop()
@@ -224,11 +224,11 @@ func (c *CoreDB) Open(user DBUser, parent *Node, queue *Queue) (*Node, error) {
 
 	n, err := c.GetNodeBySlug(parent, slug)
 	if err != nil {
-		return nil, fmt.Errorf("open (%d, %s): %w", parentId, slug, err) // %w wraps err
+		return nil, fmt.Errorf("open (%d, %s): %w", parentID, slug, err) // %w wraps err
 	}
 
 	if err := n.RequirePermission(Read, user); err != nil {
-		return nil, fmt.Errorf("open (%d, %s): %w", parentId, slug, err)
+		return nil, fmt.Errorf("open (%d, %s): %w", parentID, slug, err)
 	}
 
 	return c.Open(user, n, queue)
@@ -255,13 +255,13 @@ func (c *CoreDB) SetParent(n *Node, newParent *Node) error {
 
 	// newParent can't be below this
 	for newAncestor := newParent; newAncestor != nil; newAncestor = newAncestor.Parent {
-		if newAncestor.Id() == n.Id() {
+		if newAncestor.ID() == n.ID() {
 			return errors.New("can't move node below itself")
 		}
 	}
 
 	// skip if new parent is current parent
-	if newParent.Id() == n.Parent.Id() {
+	if newParent.ID() == n.Parent.ID() {
 		return nil
 	}
 
@@ -286,7 +286,7 @@ func (c *CoreDB) SetSlug(n *Node, slug string) error {
 // SetWorkflowGroup shadows NodeDB.SetWorkflowGroup.
 func (c *CoreDB) SetWorkflowGroup(n *Node, v *Version, newWorkflowGroup int) error {
 
-	if v.WorkflowGroupId() == newWorkflowGroup {
+	if v.WorkflowGroupID() == newWorkflowGroup {
 		return nil
 	}
 
@@ -330,11 +330,11 @@ func (c *CoreDB) SetWorkflowGroup(n *Node, v *Version, newWorkflowGroup int) err
 }
 
 // AssignWorkflow shadows EditorsDB.AssignWorkflow.
-func (c *CoreDB) AssignWorkflow(n *Node, childrenOnly bool, workflowId int) error {
-	return c.EditorsDB.AssignWorkflowId(n.Id(), childrenOnly, workflowId)
+func (c *CoreDB) AssignWorkflow(n *Node, childrenOnly bool, workflowID int) error {
+	return c.EditorsDB.AssignWorkflowID(n.ID(), childrenOnly, workflowID)
 }
 
 // UnassignWorkflow shadows EditorsDB.UnassignWorkflow.
 func (c *CoreDB) UnassignWorkflow(n *Node, childrenOnly bool) error {
-	return c.EditorsDB.UnassignWorkflow(n.Id(), childrenOnly)
+	return c.EditorsDB.UnassignWorkflow(n.ID(), childrenOnly)
 }

@@ -18,7 +18,7 @@ var workflowTmpl = tmpl(`<h1>Workflow &raquo;{{ .Selected.Name }}&laquo;</h1>
 				<select class="form-control" name="groups[]">
 					<option value=""></option>
 					{{ range $.AllGroups }}
-						<option {{ if eq (index $.Selected.Groups $i).Id .Id }}selected="selected"{{ end }} value="{{ .Id }}">{{ .Name }}</option>
+						<option {{ if eq (index $.Selected.Groups $i).ID .ID }}selected="selected"{{ end }} value="{{ .ID }}">{{ .Name }}</option>
 					{{ end }}
 				</select>
 			</div>
@@ -28,7 +28,7 @@ var workflowTmpl = tmpl(`<h1>Workflow &raquo;{{ .Selected.Name }}&laquo;</h1>
 			<select class="form-control" name="groups[]">
 				<option value="" selected="selected"></option>
 				{{ range $.AllGroups }}
-					<option value="{{ .Id }}">{{ .Name }}</option>
+					<option value="{{ .ID }}">{{ .Name }}</option>
 				{{ end }}
 			</select>
 		</div>
@@ -36,7 +36,7 @@ var workflowTmpl = tmpl(`<h1>Workflow &raquo;{{ .Selected.Name }}&laquo;</h1>
 		<button class="btn btn-primary" type="submit">Save</button>
 	</form>
 
-	<a href="workflow/{{ .Selected.Id }}/delete">`)
+	<a href="workflow/{{ .Selected.ID }}/delete">`)
 
 type workflowData struct {
 	*context
@@ -53,12 +53,12 @@ func workflow(w http.ResponseWriter, req *http.Request, ctx *context, params htt
 		return errors.New("unauthorized")
 	}
 
-	selectedId, err := strconv.Atoi(params.ByName("id"))
+	selectedID, err := strconv.Atoi(params.ByName("id"))
 	if err != nil {
 		return err
 	}
 
-	selected, err := ctx.db.GetWorkflow(selectedId)
+	selected, err := ctx.db.GetWorkflow(selectedID)
 	if err != nil {
 		return err
 	}
@@ -67,24 +67,24 @@ func workflow(w http.ResponseWriter, req *http.Request, ctx *context, params htt
 
 		req.ParseForm()
 
-		var groupIds = []int{}
-		for _, groupIdStr := range req.PostForm["groups[]"] {
-			if groupIdStr == "" {
+		var groupIDs = []int{}
+		for _, groupIDStr := range req.PostForm["groups[]"] {
+			if groupIDStr == "" {
 				continue
 			}
-			groupId, err := strconv.Atoi(groupIdStr)
+			groupID, err := strconv.Atoi(groupIDStr)
 			if err != nil {
 				return err
 			}
-			groupIds = append(groupIds, groupId)
+			groupIDs = append(groupIDs, groupID)
 		}
 
-		if err := ctx.db.UpdateWorkflow(selected.DBWorkflow, groupIds); err != nil {
+		if err := ctx.db.UpdateWorkflow(selected.DBWorkflow, groupIDs); err != nil {
 			return err
 		}
 
 		ctx.Success("workflow %s has been updated", selected.Name())
-		ctx.SeeOther("/workflow/%d", selected.Id())
+		ctx.SeeOther("/workflow/%d", selected.ID())
 		return nil
 	}
 

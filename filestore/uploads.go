@@ -23,19 +23,19 @@ import (
 // implements upload.Folder
 type Folder struct {
 	store  *Store
-	nodeId int
+	nodeID int
 }
 
 func (f Folder) formatCached(w, h int, filename string) string {
-	return fmt.Sprintf("%s/%d_%d_%d_%s", f.store.CacheDir, f.nodeId, w, h, filename)
+	return fmt.Sprintf("%s/%d_%d_%d_%s", f.store.CacheDir, f.nodeID, w, h, filename)
 }
 
 func (f Folder) formatCacheds(filename string) string {
-	return fmt.Sprintf("%s/%d_*_*_%s", f.store.CacheDir, f.nodeId, filename)
+	return fmt.Sprintf("%s/%d_*_*_%s", f.store.CacheDir, f.nodeID, filename)
 }
 
 func (f Folder) uploadsFs() string {
-	return fmt.Sprintf(f.store.UploadDir+"/%d/", f.nodeId)
+	return fmt.Sprintf(f.store.UploadDir+"/%d/", f.nodeID)
 }
 
 func (f Folder) Delete(filename string) error {
@@ -66,8 +66,8 @@ func (f Folder) Delete(filename string) error {
 	return nil
 }
 
-func (f Folder) NodeId() int {
-	return f.nodeId
+func (f Folder) NodeID() int {
+	return f.nodeID
 }
 
 func (f Folder) Files() ([]os.FileInfo, error) {
@@ -135,15 +135,15 @@ type Store struct {
 	Resizer    JPEGResizer
 }
 
-func (s *Store) Folder(nodeId int) upload.Folder {
+func (s *Store) Folder(nodeID int) upload.Folder {
 	return &Folder{
 		store:  s,
-		nodeId: nodeId,
+		nodeID: nodeID,
 	}
 }
 
-func (s *Store) HMAC(nodeId int, filename string, w int, h int, ts int64) string {
-	return upload.HMAC(s.HMACSecret, nodeId, filename, w, h, ts)
+func (s *Store) HMAC(nodeID int, filename string, w int, h int, ts int64) string {
+	return upload.HMAC(s.HMACSecret, nodeID, filename, w, h, ts)
 }
 
 func (s *Store) ServeHTTP(writer http.ResponseWriter, req *http.Request) {
@@ -172,7 +172,7 @@ func (s *Store) ServeHTTP(writer http.ResponseWriter, req *http.Request) {
 
 	// HMAC to avoid DoS attacks, deny access if timestamp is older than one day
 
-	if !hmac.Equal([]byte(s.HMAC(location.nodeId, filename, w, h, ts)), sig) {
+	if !hmac.Equal([]byte(s.HMAC(location.nodeID, filename, w, h, ts)), sig) {
 		http.NotFound(writer, req)
 		return
 	}

@@ -261,7 +261,7 @@ func makeAdmin(db *core.CoreDB, groupname string) {
 		return
 	}
 
-	if err := db.AccessDB.InsertAccessRule(1, group.Id(), int(core.Admin)); err != nil {
+	if err := db.AccessDB.InsertAccessRule(1, group.ID(), int(core.Admin)); err != nil {
 		log.Printf(`error giving root admin permission to group: %v`, err)
 		return
 	}
@@ -323,7 +323,7 @@ func listen(db *core.CoreDB, addr string, base string) {
 
 				var mainRoute = &core.Route{
 					Request: request,
-					Queue:   core.NewQueue("/"+core.RootSlug+req.URL.Path),
+					Queue:   core.NewQueue("/" + core.RootSlug + req.URL.Path),
 				}
 				defer mainRoute.Cleanup()
 

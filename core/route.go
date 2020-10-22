@@ -11,7 +11,7 @@ import (
 	"runtime/debug"
 )
 
-const RootId = 1        // id of the root node
+const RootID = 1        // id of the root node
 const RootSlug = "root" // slug of the root node
 
 // see https://golang.org/pkg/context/#WithValue
@@ -133,10 +133,10 @@ func (r *Route) pop(parent *Node) error {
 		r.Recursed = make(map[int]interface{})
 	}
 
-	if _, ok := r.Recursed[parent.Id()]; ok {
+	if _, ok := r.Recursed[parent.ID()]; ok {
 		return nil // already done
 	}
-	r.Recursed[parent.Id()] = struct{}{}
+	r.Recursed[parent.ID()] = struct{}{}
 
 	// When the template engine recovers from a panic, it displays an 404 error and logs the panic message.
 	// This displays the panic message and logs a stack trace.
@@ -171,7 +171,7 @@ func (r *Route) pop(parent *Node) error {
 			// resort to default
 			n, err = r.Request.db.GetNodeBySlug(parent, "default")
 			if err != nil {
-				return fmt.Errorf("pop (%d, %s): %w", parent.Id(), slug, err) // neither slug nor default were found
+				return fmt.Errorf("pop (%d, %s): %w", parent.ID(), slug, err) // neither slug nor default were found
 			}
 		}
 	}

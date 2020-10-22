@@ -31,18 +31,18 @@ func NewAccessDB(db *sql.DB) *AccessDB {
 	return accessDB
 }
 
-func (e *AccessDB) GetAccessRules(nodeId int) (map[int]int, error) {
-	res, err := e.get.Query(nodeId)
+func (e *AccessDB) GetAccessRules(nodeID int) (map[int]int, error) {
+	res, err := e.get.Query(nodeID)
 	if err != nil {
 		return nil, err
 	}
 	var rules = map[int]int{}
 	for res.Next() {
-		var groupId, perm int
-		if err = res.Scan(&groupId, &perm); err != nil {
+		var groupID, perm int
+		if err = res.Scan(&groupID, &perm); err != nil {
 			return nil, err
 		}
-		rules[groupId] = perm
+		rules[groupID] = perm
 	}
 	return rules, nil
 }
@@ -54,24 +54,24 @@ func (e *AccessDB) GetAllAccessRules() (map[int]map[int]int, error) {
 	}
 	var all = make(map[int]map[int]int)
 	for res.Next() {
-		var nodeId, groupId, perm int
-		if err = res.Scan(&nodeId, &groupId, &perm); err != nil {
+		var nodeID, groupID, perm int
+		if err = res.Scan(&nodeID, &groupID, &perm); err != nil {
 			return nil, err
 		}
-		if _, ok := all[nodeId]; !ok {
-			all[nodeId] = make(map[int]int)
+		if _, ok := all[nodeID]; !ok {
+			all[nodeID] = make(map[int]int)
 		}
-		all[nodeId][groupId] = perm
+		all[nodeID][groupID] = perm
 	}
 	return all, nil
 }
 
-func (e *AccessDB) InsertAccessRule(nodeId int, groupId int, perm int) error {
-	_, err := e.insert.Exec(nodeId, groupId, perm)
+func (e *AccessDB) InsertAccessRule(nodeID int, groupID int, perm int) error {
+	_, err := e.insert.Exec(nodeID, groupID, perm)
 	return err
 }
 
-func (e *AccessDB) RemoveAccessRule(nodeId int, groupId int) error {
-	_, err := e.remove.Exec(nodeId, groupId)
+func (e *AccessDB) RemoveAccessRule(nodeID int, groupID int) error {
+	_, err := e.remove.Exec(nodeID, groupID)
 	return err
 }

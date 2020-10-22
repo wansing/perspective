@@ -5,7 +5,7 @@ import (
 )
 
 type DBUser interface {
-	Id() int
+	ID() int
 	Name() string // can be email address
 }
 
@@ -90,7 +90,7 @@ func (n *Node) requirePermissionRecursive(perm Permission, u DBUser, permittingR
 		return ErrUnauthorized
 	}
 
-	if err := n.db.requireRule(perm, n.Id(), u, permittingRules); err == nil {
+	if err := n.db.requireRule(perm, n.ID(), u, permittingRules); err == nil {
 		return nil
 	}
 
@@ -110,5 +110,5 @@ func (n *Node) ReleaseState(v DBVersion, u DBUser) (*ReleaseState, error) {
 	if err != nil {
 		return nil, err
 	}
-	return GetReleaseState(workflow, v.WorkflowGroupId(), u)
+	return GetReleaseState(workflow, v.WorkflowGroupID(), u)
 }

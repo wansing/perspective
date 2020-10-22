@@ -2,7 +2,7 @@ package core
 
 type Guest struct{}
 
-func (Guest) Id() int {
+func (Guest) ID() int {
 	return 0
 }
 

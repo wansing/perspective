@@ -20,7 +20,7 @@ import (
 var editTmpl = tmpl(`{{ Breadcrumbs .Selected true }}
 
 	<div class="mb-3">
-		{{ .Selected.Class.Name }} &middot; ID: {{ .Selected.Id }} &middot; Workflow: <em>{{ WorkflowLink .State.Workflow }}</em>
+		{{ .Selected.Class.Name }} &middot; ID: {{ .Selected.ID }} &middot; Workflow: <em>{{ WorkflowLink .State.Workflow }}</em>
 
 		{{ if ne .SelectedVersion.VersionNo 0 }}
 			&middot; Version: {{ .SelectedVersion.VersionNo }} ({{ FormatTs .SelectedVersion.TsChanged }})
@@ -76,7 +76,7 @@ var editTmpl = tmpl(`{{ Breadcrumbs .Selected true }}
 					<optgroup label="Workflow group">
 
 					{{ range .State.SaveGroups }}
-						<option {{ if eq .Id $.WorkflowGroupId -}} selected {{- end }} value="{{ .Id }}">{{ .Name }}</option>
+						<option {{ if eq .ID $.WorkflowGroupID -}} selected {{- end }} value="{{ .ID }}">{{ .Name }}</option>
 					{{ end }}
 
 					</optgroup>
@@ -267,7 +267,7 @@ type editData struct {
 	State           *core.ReleaseState
 	Content         string
 	VersionNote     string
-	WorkflowGroupId int // recommended workflow group if the content is edited
+	WorkflowGroupID int // recommended workflow group if the content is edited
 }
 
 func (data *editData) GetFiles() ([]os.FileInfo, error) {
@@ -304,7 +304,7 @@ func (data *editData) VersionHistory() (template.HTML, error) {
 		`)
 
 		// not taking groups from the workflow because the workflow might have changed in the meantime, not containing the group any more
-		if grp, err := data.db.GetGroupOrReaders(v.WorkflowGroupId()); err == nil {
+		if grp, err := data.db.GetGroupOrReaders(v.WorkflowGroupID()); err == nil {
 			w.WriteString(html.EscapeString(grp.Name()))
 		}
 
@@ -357,9 +357,9 @@ func edit(w http.ResponseWriter, req *http.Request, ctx *context, params httprou
 		versionNote = fmt.Sprintf("modified version %d of %d", selectedVersion.VersionNo(), selected.MaxVersionNo())
 	}
 
-	var workflowGroupId int
+	var workflowGroupID int
 	if sg := state.SuggestedSaveGroup(); sg != nil {
-		workflowGroupId = (*sg).Id()
+		workflowGroupID = (*sg).ID()
 	}
 
 	if req.Method == http.MethodPost {
@@ -367,19 +367,19 @@ func edit(w http.ResponseWriter, req *http.Request, ctx *context, params httprou
 		content = req.PostFormValue("content")
 		versionNote = req.PostFormValue("version_note")
 
-		workflowGroupId, err = strconv.Atoi(req.PostFormValue("workflow_group"))
+		workflowGroupID, err = strconv.Atoi(req.PostFormValue("workflow_group"))
 		if err != nil {
 			return err
 		}
-		if !state.IsSaveGroup(workflowGroupId) {
-			return fmt.Errorf("invalid workflow group id: %d", workflowGroupId)
+		if !state.IsSaveGroup(workflowGroupID) {
+			return fmt.Errorf("invalid workflow group id: %d", workflowGroupID)
 		}
 
 		var deleteFiles = req.Form["deleteFiles[]"]
 		var uploadFiles = req.MultipartForm.File["upload[]"]
 		defer req.MultipartForm.RemoveAll()
 
-		if err = doEdit(ctx, selected, selectedVersion, content, versionNote, ctx.User.Name(), workflowGroupId, deleteFiles, uploadFiles); err == nil {
+		if err = doEdit(ctx, selected, selectedVersion, content, versionNote, ctx.User.Name(), workflowGroupID, deleteFiles, uploadFiles); err == nil {
 			ctx.SeeOther("/edit/%d%s", 0 /* evaluates to max version number, might be racey */, selected.Location())
 			return nil
 		} else {
@@ -395,11 +395,11 @@ func edit(w http.ResponseWriter, req *http.Request, ctx *context, params httprou
 		State:           state,
 		Content:         content,
 		VersionNote:     versionNote,
-		WorkflowGroupId: workflowGroupId,
+		WorkflowGroupID: workflowGroupID,
 	})
 }
 
-func doEdit(ctx *context, selected *core.Node, selectedVersion core.DBVersion, content, versionNote, username string, workflowGroupId int, deleteFiles []string, uploadFiles []*multipart.FileHeader) error {
+func doEdit(ctx *context, selected *core.Node, selectedVersion core.DBVersion, content, versionNote, username string, workflowGroupID int, deleteFiles []string, uploadFiles []*multipart.FileHeader) error {
 
 	// delete files
 
@@ -428,7 +428,7 @@ func doEdit(ctx *context, selected *core.Node, selectedVersion core.DBVersion, c
 	// edit content (versioned)
 
 	if content != selectedVersion.Content() {
-		if err := ctx.db.Edit(selected, selectedVersion, content, versionNote, username, workflowGroupId); err != nil {
+		if err := ctx.db.Edit(selected, selectedVersion, content, versionNote, username, workflowGroupID); err != nil {
 			return err
 		}
 	}

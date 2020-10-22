@@ -9,8 +9,8 @@ import (
 )
 
 type Store interface {
-	Folder(nodeId int) Folder
-	HMAC(nodeId int, filename string, w int, h int, ts int64) string
+	Folder(nodeID int) Folder
+	HMAC(nodeID int, filename string, w int, h int, ts int64) string
 	ServeHTTP(writer http.ResponseWriter, req *http.Request) // implementations will use HMAC and ParseUploadUrl
 }
 
@@ -40,9 +40,9 @@ func ParseUrl(store Store, defaultFolder Folder, u *url.URL) (isUpload bool, upl
 	// u.Path like "123/foo.jpg"
 
 	if dir != "" {
-		if nodeId, err := strconv.Atoi(dir); nodeId > 0 && err == nil {
+		if nodeID, err := strconv.Atoi(dir); nodeID > 0 && err == nil {
 			isUpload = true
-			uploadLocation = store.Folder(nodeId)
+			uploadLocation = store.Folder(nodeID)
 		}
 	}
 

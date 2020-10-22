@@ -199,7 +199,7 @@ var backendTmpl = template.Must(template.New("backend").Parse(`
 						<a class="nav-link" href="choose/1/">Nodes</a>
 					</li>
 					<li class="nav-item">
-						<a class="nav-link" href="user/{{ .User.Id }}">{{ .User.Name }}</a>
+						<a class="nav-link" href="user/{{ .User.ID }}">{{ .User.Name }}</a>
 					</li>
 
 					{{ if .IsRootAdmin }}
@@ -322,20 +322,20 @@ var backendTmpl = template.Must(template.New("backend").Parse(`
 		},
 		"FormatTs": FormatTs,
 		"GroupLink": func(group core.DBGroup) template.HTML {
-			if group.Id() == 0 { // all users
+			if group.ID() == 0 { // all users
 				return template.HTML(group.Name())
 			} else {
-				return template.HTML(fmt.Sprintf(`<a href="group/%d">%s</a>`, group.Id(), group.Name()))
+				return template.HTML(fmt.Sprintf(`<a href="group/%d">%s</a>`, group.ID(), group.Name()))
 			}
 		},
 		"UserLink": func(user core.DBUser) template.HTML {
-			return template.HTML(fmt.Sprintf(`<a href="user/%d">%s</a>`, user.Id(), user.Name()))
+			return template.HTML(fmt.Sprintf(`<a href="user/%d">%s</a>`, user.ID(), user.Name()))
 		},
 		"WorkflowLink": func(w *core.Workflow) template.HTML {
-			return template.HTML(fmt.Sprintf(`<a href="workflow/%d">%s</a>`, w.Id(), w.Name()))
+			return template.HTML(fmt.Sprintf(`<a href="workflow/%d">%s</a>`, w.ID(), w.Name()))
 		},
 		"WorkflowLinkLong": func(w *core.Workflow) template.HTML {
-			return template.HTML(fmt.Sprintf(`<a href="workflow/%d">%s</a>`, w.Id(), w.String()))
+			return template.HTML(fmt.Sprintf(`<a href="workflow/%d">%s</a>`, w.ID(), w.String()))
 		},
 	},
 )

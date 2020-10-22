@@ -15,7 +15,7 @@ type group struct {
 	membersLoaded bool                // lazy loading
 }
 
-func (g *group) Id() int {
+func (g *group) ID() int {
 	return g.id
 }
 
@@ -25,7 +25,7 @@ func (g *group) Name() string {
 
 func (g *group) HasMember(u core.DBUser) (bool, error) {
 	if members, err := g.Members(); err == nil {
-		_, ok := members[u.Id()]
+		_, ok := members[u.ID()]
 		return ok, nil
 	} else {
 		return false, err
@@ -45,11 +45,11 @@ func (g *group) Members() (map[int]interface{}, error) {
 		defer rows.Close()
 
 		for rows.Next() {
-			var userId int
-			if err = rows.Scan(&userId); err != nil {
+			var userID int
+			if err = rows.Scan(&userID); err != nil {
 				return nil, err
 			}
-			g.members[userId] = struct{}{}
+			g.members[userID] = struct{}{}
 		}
 
 		g.membersLoaded = true
@@ -112,13 +112,13 @@ func (db *GroupDB) Delete(g core.DBGroup) error {
 		return err
 	}
 
-	_, err = tx.Stmt(db.leaveUsers).Exec(g.Id())
+	_, err = tx.Stmt(db.leaveUsers).Exec(g.ID())
 	if err != nil {
 		tx.Rollback()
 		return err
 	}
 
-	_, err = tx.Stmt(db.delete).Exec(g.Id())
+	_, err = tx.Stmt(db.delete).Exec(g.ID())
 	if err != nil {
 		tx.Rollback()
 		return err
@@ -175,7 +175,7 @@ func (db *GroupDB) GetAllGroups(limit, offset int) ([]core.DBGroup, error) {
 }
 
 func (db *GroupDB) GetGroupsOf(u core.DBUser) ([]core.DBGroup, error) {
-	return db.getMultiple(db.getOf, u.Id())
+	return db.getMultiple(db.getOf, u.ID())
 }
 
 func (db *GroupDB) InsertGroup(name string) error {
@@ -185,34 +185,34 @@ func (db *GroupDB) InsertGroup(name string) error {
 
 func (db *GroupDB) Join(g core.DBGroup, user core.DBUser) error {
 
-	if user.Id() == 0 {
+	if user.ID() == 0 {
 		return errors.New("can't add all users")
 	}
 
-	_, err := db.join.Exec(g.Id(), user.Id())
+	_, err := db.join.Exec(g.ID(), user.ID())
 	if err != nil {
 		return err
 	}
 
 	if grp := g.(*group); grp.members != nil { // if members are loaded
-		grp.members[user.Id()] = struct{}{}
+		grp.members[user.ID()] = struct{}{}
 	}
 	return nil
 }
 
 func (db *GroupDB) Leave(g core.DBGroup, user core.DBUser) error {
 
-	if user.Id() == 0 {
+	if user.ID() == 0 {
 		return errors.New("can't remove all users")
 	}
 
-	_, err := db.leave.Exec(g.Id(), user.Id())
+	_, err := db.leave.Exec(g.ID(), user.ID())
 	if err != nil {
 		return err
 	}
 
 	if grp := g.(*group); grp.members != nil { // if members are loaded
-		delete(grp.members, user.Id())
+		delete(grp.members, user.ID())
 	}
 	return nil
 }

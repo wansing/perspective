@@ -62,17 +62,17 @@ func (data *userData) Groups() ([]core.DBGroup, error) {
 
 func user(w http.ResponseWriter, req *http.Request, ctx *context, params httprouter.Params) error {
 
-	selectedId, err := strconv.Atoi(params.ByName("id"))
+	selectedID, err := strconv.Atoi(params.ByName("id"))
 	if err != nil {
 		return err
 	}
 
-	selected, err := ctx.db.GetUser(selectedId)
+	selected, err := ctx.db.GetUser(selectedID)
 	if err != nil {
 		return err
 	}
 
-	if !(ctx.IsRootAdmin() || selected.Id() == ctx.User.Id()) {
+	if !(ctx.IsRootAdmin() || selected.ID() == ctx.User.ID()) {
 		return errors.New("unauthorized")
 	}
 
@@ -94,7 +94,7 @@ func user(w http.ResponseWriter, req *http.Request, ctx *context, params httprou
 		}
 
 		ctx.Success("password of %s has been changed", selected.Name())
-		ctx.SeeOther("/users/%d", selected.Id())
+		ctx.SeeOther("/users/%d", selected.ID())
 		return nil
 	}
 

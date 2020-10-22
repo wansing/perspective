@@ -55,7 +55,7 @@ var accessTmpl = tmpl(`<h1>Access Rules of {{ .Selected.Location }}</h1>
 				<tr>
 					<td>{{ $group.Name }}</td>
 					<td>{{ $permission.String }}</td>
-					<td><input type="checkbox" name="remove[]" value="{{ $group.Id }}"></td>
+					<td><input type="checkbox" name="remove[]" value="{{ $group.ID }}"></td>
 				</tr>
 
 			{{ end }}
@@ -67,7 +67,7 @@ var accessTmpl = tmpl(`<h1>Access Rules of {{ .Selected.Location }}</h1>
 						<option value="0">All Users</option>
 
 						{{ range $.AllGroups }}
-							<option value="{{ .Id }}">{{ .Name }}</option>
+							<option value="{{ .ID }}">{{ .Name }}</option>
 						{{ end }}
 
 					</select>
@@ -121,8 +121,8 @@ func (t *accessData) WriteWorkflowOptions(selectedWorkflow *core.Workflow) (temp
 	}
 
 	for _, workflow := range allWorkflows {
-		buf.WriteString(`<option value="` + strconv.Itoa(workflow.Id()) + `"`)
-		if selectedWorkflow != nil && (*selectedWorkflow).Id() == workflow.Id() {
+		buf.WriteString(`<option value="` + strconv.Itoa(workflow.ID()) + `"`)
+		if selectedWorkflow != nil && (*selectedWorkflow).ID() == workflow.ID() {
 			buf.WriteString(` selected`)
 		}
 		buf.WriteString(`>` + workflow.Name() + `</option>`)
@@ -149,34 +149,34 @@ func access(w http.ResponseWriter, req *http.Request, ctx *context, params httpr
 
 		// workflow
 
-		workflowId, err := strconv.Atoi(req.PostFormValue("workflow"))
+		workflowID, err := strconv.Atoi(req.PostFormValue("workflow"))
 		if err != nil {
 			return err
 		}
 
-		if workflowId == 0 {
+		if workflowID == 0 {
 			if err = ctx.db.UnassignWorkflow(selected, false); err != nil {
 				return err
 			}
 		} else {
-			if err = ctx.db.AssignWorkflow(selected, false, workflowId); err != nil {
+			if err = ctx.db.AssignWorkflow(selected, false, workflowID); err != nil {
 				return err
 			}
 		}
 
 		// children workflow
 
-		childrenWorkflowId, err := strconv.Atoi(req.PostFormValue("childrenWorkflow"))
+		childrenWorkflowID, err := strconv.Atoi(req.PostFormValue("childrenWorkflow"))
 		if err != nil {
 			return err
 		}
 
-		if childrenWorkflowId == 0 {
+		if childrenWorkflowID == 0 {
 			if err = ctx.db.UnassignWorkflow(selected, true); err != nil {
 				return err
 			}
 		} else {
-			if err = ctx.db.AssignWorkflow(selected, true, childrenWorkflowId); err != nil {
+			if err = ctx.db.AssignWorkflow(selected, true, childrenWorkflowID); err != nil {
 				return err
 			}
 		}
@@ -185,12 +185,12 @@ func access(w http.ResponseWriter, req *http.Request, ctx *context, params httpr
 
 		removeRules := make(map[int]interface{})
 
-		for _, groupIdString := range req.PostForm["remove[]"] {
-			groupId, err := strconv.Atoi(groupIdString)
+		for _, groupIDString := range req.PostForm["remove[]"] {
+			groupID, err := strconv.Atoi(groupIDString)
 			if err != nil {
 				return err
 			}
-			removeRules[groupId] = struct{}{}
+			removeRules[groupID] = struct{}{}
 		}
 
 		// anti-lockout
@@ -200,12 +200,12 @@ func access(w http.ResponseWriter, req *http.Request, ctx *context, params httpr
 			return err
 		}
 
-		var mySelectedAdminRules = myAdminRules[selected.Id()]
+		var mySelectedAdminRules = myAdminRules[selected.ID()]
 		if len(myAdminRules) == len(mySelectedAdminRules) {
 			// all of my admin rules apply to this node, none of them apply to any of its ancestors
-			for groupId, _ := range removeRules {
+			for groupID := range removeRules {
 				// simulate removal
-				delete(mySelectedAdminRules, groupId)
+				delete(mySelectedAdminRules, groupID)
 			}
 			if len(mySelectedAdminRules) == 0 {
 				// there would be no admin rules left for this node
@@ -215,8 +215,8 @@ func access(w http.ResponseWriter, req *http.Request, ctx *context, params httpr
 
 		// process removeRules
 
-		for removeGroupId := range removeRules {
-			err = ctx.db.RemoveAccessRule(selected, removeGroupId)
+		for removeGroupID := range removeRules {
+			err = ctx.db.RemoveAccessRule(selected, removeGroupID)
 			if err != nil {
 				return fmt.Errorf("error removing rule: %v", err)
 			}
@@ -224,12 +224,12 @@ func access(w http.ResponseWriter, req *http.Request, ctx *context, params httpr
 
 		// add (group, permission)
 
-		addGroupIdStr := req.PostFormValue("group")
+		addGroupIDStr := req.PostFormValue("group")
 		addPermissionStr := req.PostFormValue("permission")
 
-		if addGroupIdStr != "" && addPermissionStr != "" {
+		if addGroupIDStr != "" && addPermissionStr != "" {
 
-			addGroupId, err := strconv.Atoi(addGroupIdStr)
+			addGroupID, err := strconv.Atoi(addGroupIDStr)
 			if err != nil {
 				return err
 			}
@@ -239,7 +239,7 @@ func access(w http.ResponseWriter, req *http.Request, ctx *context, params httpr
 				return err
 			}
 
-			err = ctx.db.AddAccessRule(selected, addGroupId, core.Permission(addPermission))
+			err = ctx.db.AddAccessRule(selected, addGroupID, core.Permission(addPermission))
 			if err != nil {
 				return fmt.Errorf("error adding rule: %v", err)
 			}

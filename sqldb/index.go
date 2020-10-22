@@ -52,14 +52,14 @@ func NewIndexDB(db *sql.DB) *IndexDB {
 	return indexDB
 }
 
-func (db *IndexDB) SetTags(parentId int, nodeId int, nodeTsChanged int64, tags []string) error {
+func (db *IndexDB) SetTags(parentID int, nodeID int, nodeTsChanged int64, tags []string) error {
 
 	tx, err := db.Begin() // faster than independent inserts in SQLite
 	if err != nil {
 		return err
 	}
 
-	if _, err := tx.Stmt(db.clearTag).Exec(nodeId); err != nil {
+	if _, err := tx.Stmt(db.clearTag).Exec(nodeID); err != nil {
 		return err
 	}
 
@@ -72,7 +72,7 @@ func (db *IndexDB) SetTags(parentId int, nodeId int, nodeTsChanged int64, tags [
 			continue
 		}
 
-		if _, err := stmt.Exec(parentId, nodeId, nodeTsChanged, tag); err != nil {
+		if _, err := stmt.Exec(parentID, nodeID, nodeTsChanged, tag); err != nil {
 			tx.Rollback()
 			return err
 		}
@@ -81,21 +81,21 @@ func (db *IndexDB) SetTags(parentId int, nodeId int, nodeTsChanged int64, tags [
 	return tx.Commit()
 }
 
-func (db *IndexDB) SetTimestamps(parentId int, nodeId int, timestamps []int64) error {
+func (db *IndexDB) SetTimestamps(parentID int, nodeID int, timestamps []int64) error {
 
 	tx, err := db.Begin() // faster than independent inserts in SQLite
 	if err != nil {
 		return err
 	}
 
-	if _, err := tx.Stmt(db.clearTs).Exec(nodeId); err != nil {
+	if _, err := tx.Stmt(db.clearTs).Exec(nodeID); err != nil {
 		return err
 	}
 
 	var stmt = tx.Stmt(db.insertTs)
 
 	for _, ts := range timestamps {
-		if _, err := stmt.Exec(parentId, nodeId, ts); err != nil {
+		if _, err := stmt.Exec(parentID, nodeID, ts); err != nil {
 			tx.Rollback()
 			return err
 		}
@@ -104,50 +104,50 @@ func (db *IndexDB) SetTimestamps(parentId int, nodeId int, timestamps []int64) e
 	return tx.Commit()
 }
 
-func (db *IndexDB) RecentChildrenByTag(parentId int, now int64, tag string, limit, offset int) ([]int, error) {
+func (db *IndexDB) RecentChildrenByTag(parentID int, now int64, tag string, limit, offset int) ([]int, error) {
 
 	tag = cleanTag(tag)
 	if tag == "" {
 		return nil, errors.New("no tag")
 	}
 
-	rows, err := db.recentByTag.Query(parentId, now, tag, limit, offset)
+	rows, err := db.recentByTag.Query(parentID, now, tag, limit, offset)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	var nodeIds = []int{}
+	var nodeIDs = []int{}
 	for rows.Next() {
-		var nodeId int
-		if err = rows.Scan(&nodeId); err != nil {
+		var nodeID int
+		if err = rows.Scan(&nodeID); err != nil {
 			return nil, err
 		}
-		nodeIds = append(nodeIds, nodeId)
+		nodeIDs = append(nodeIDs, nodeID)
 	}
-	return nodeIds, nil
+	return nodeIDs, nil
 }
 
-func (db *IndexDB) UpcomingChildrenByTag(parentId int, now int64, tag string, limit, offset int) ([]int, error) {
+func (db *IndexDB) UpcomingChildrenByTag(parentID int, now int64, tag string, limit, offset int) ([]int, error) {
 
 	tag = cleanTag(tag)
 	if tag == "" {
 		return nil, errors.New("no tag")
 	}
 
-	rows, err := db.upcomingByTag.Query(parentId, now, tag, limit, offset)
+	rows, err := db.upcomingByTag.Query(parentID, now, tag, limit, offset)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	var nodeIds = []int{}
+	var nodeIDs = []int{}
 	for rows.Next() {
-		var nodeId int
-		if err = rows.Scan(&nodeId); err != nil {
+		var nodeID int
+		if err = rows.Scan(&nodeID); err != nil {
 			return nil, err
 		}
-		nodeIds = append(nodeIds, nodeId)
+		nodeIDs = append(nodeIDs, nodeID)
 	}
-	return nodeIds, nil
+	return nodeIDs, nil
 }

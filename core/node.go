@@ -11,8 +11,8 @@ import (
 var ErrUnauthorized = errors.New("unauthorized")
 
 type DBNode interface {
-	Id() int
-	ParentId() int
+	ID() int
+	ParentID() int
 	Slug() string
 	ClassName() string
 	TsCreated() int64
@@ -26,21 +26,21 @@ type DBNodeVersion interface {
 }
 
 type NodeDB interface {
-	AddVersion(n DBNode, content, versionNote string, workflowGroupId int) error
+	AddVersion(n DBNode, content, versionNote string, workflowGroupID int) error
 	CountChildren(id int) (int, error)
 	CountReleasedChildren(id int) (int, error)
 	DeleteNode(n DBNode) error
 	GetChildren(id int, order Order, limit, offset int) ([]DBNodeVersion, error) // version part can be empty, exists just because it makes caching easier
-	GetNodeById(id int) (DBNode, error)
-	GetNodeBySlug(parentId int, slug string) (DBNode, error)
+	GetNodeByID(id int) (DBNode, error)
+	GetNodeBySlug(parentID int, slug string) (DBNode, error)
 	GetReleasedChildren(id int, order Order, limit, offset int) ([]DBNodeVersion, error)
 	GetVersion(id int, versionNo int) (DBVersion, error)
-	InsertNode(parentId int, slug string, class string) error
+	InsertNode(parentID int, slug string, class string) error
 	IsNotFound(err error) bool
 	SetClass(n DBNode, className string) error
 	SetParent(n DBNode, parent DBNode) error
 	SetSlug(n DBNode, slug string) error
-	SetWorkflowGroup(n DBNode, v DBVersionStub, groupId int) error // sets workflow group id of the current version
+	SetWorkflowGroup(n DBNode, v DBVersionStub, groupID int) error // sets workflow group id of the current version
 	Versions(id int) ([]DBVersionStub, error)
 }
 
@@ -62,7 +62,7 @@ func (NoVersion) VersionNote() string {
 	return ""
 }
 
-func (NoVersion) WorkflowGroupId() int {
+func (NoVersion) WorkflowGroupID() int {
 	return 0
 }
 
@@ -107,19 +107,19 @@ func (c *CoreDB) NewNode(parent *Node, dbNode DBNode) *Node {
 }
 
 func (n *Node) GetVersion(versionNo int) (*Version, error) {
-	v, err := n.db.GetVersion(n.Id(), versionNo)
+	v, err := n.db.GetVersion(n.ID(), versionNo)
 	if err != nil {
-		return nil, fmt.Errorf("version %d of node %d: %w", versionNo, n.Id(), err)
+		return nil, fmt.Errorf("version %d of node %d: %w", versionNo, n.ID(), err)
 	}
 	return NewVersion(v), nil
 }
 
 func (n *Node) CountChildren() (int, error) {
-	return n.db.CountChildren(n.Id())
+	return n.db.CountChildren(n.ID())
 }
 
 func (n *Node) CountReleasedChildren() (int, error) {
-	return n.db.CountReleasedChildren(n.Id())
+	return n.db.CountReleasedChildren(n.ID())
 }
 
 func (n *Node) Depth() int {
@@ -131,16 +131,16 @@ func (n *Node) Depth() int {
 	return depth
 }
 
-// Id shadows DBNode.Id. If the receiver is nil, it returns zero.
-func (n *Node) Id() int {
+// ID shadows DBNode.ID. If the receiver is nil, it returns zero.
+func (n *Node) ID() int {
 	if n != nil {
-		return n.DBNode.Id()
+		return n.DBNode.ID()
 	}
 	return 0
 }
 
 func (n *Node) GetChildren(user DBUser, order Order, limit, offset int) ([]*Node, error) {
-	var children, err = n.db.GetChildren(n.Id(), order, limit, offset)
+	var children, err = n.db.GetChildren(n.ID(), order, limit, offset)
 	if err != nil {
 		return nil, err
 	}
@@ -156,7 +156,7 @@ func (n *Node) GetChildren(user DBUser, order Order, limit, offset int) ([]*Node
 }
 
 func (n *Node) GetReleasedChildren(user DBUser, order Order, limit, offset int) ([]NodeVersion, error) {
-	var children, err = n.db.GetReleasedChildren(n.Id(), order, limit, offset)
+	var children, err = n.db.GetReleasedChildren(n.ID(), order, limit, offset)
 	if err != nil {
 		return nil, err
 	}
@@ -177,13 +177,13 @@ func (n *Node) GetReleasedChildren(user DBUser, order Order, limit, offset int) 
 
 // GetAssignedRules returns all access rules which are assigned with the receiver node.
 func (n *Node) GetAssignedRules() (map[DBGroup]Permission, error) {
-	var rawRules, err = n.db.GetAccessRules(n.Id())
+	var rawRules, err = n.db.GetAccessRules(n.ID())
 	if err != nil {
 		return nil, err
 	}
 	var rules = make(map[DBGroup]Permission)
-	for groupId, permInt := range rawRules {
-		var group, err = n.db.GetGroup(groupId)
+	for groupID, permInt := range rawRules {
+		var group, err = n.db.GetGroup(groupID)
 		if err != nil {
 			return nil, err
 		}
@@ -198,14 +198,14 @@ func (n *Node) GetAssignedRules() (map[DBGroup]Permission, error) {
 
 // GetAssignedWorkflow returns the workflow which is directly assigned to the node, if any.
 func (n *Node) GetAssignedWorkflow(childrenOnly bool) (*Workflow, error) {
-	var workflowId, err = n.db.GetAssignedWorkflowId(n.Id(), childrenOnly)
+	var workflowID, err = n.db.GetAssignedWorkflowID(n.ID(), childrenOnly)
 	if err != nil {
 		return nil, err
 	}
-	if workflowId == 0 {
+	if workflowID == 0 {
 		return nil, nil
 	}
-	return n.db.GetWorkflow(workflowId)
+	return n.db.GetWorkflow(workflowID)
 }
 
 // GetWorkflow returns the workflow which applies (but is not necessarily directly assigned) to the node.
@@ -243,15 +243,15 @@ func (n *Node) GetWorkflow() (*Workflow, error) {
 
 // Folder returns the upload.Folder which stores uploaded files for the node.
 func (n *Node) Folder() upload.Folder {
-	return n.db.Uploads.Folder(n.Id())
+	return n.db.Uploads.Folder(n.ID())
 }
 
-func (n *Node) HMAC(nodeId int, filename string, w int, h int, ts int64) string {
-	return n.db.Uploads.HMAC(nodeId, filename, w, h, ts)
+func (n *Node) HMAC(nodeID int, filename string, w int, h int, ts int64) string {
+	return n.db.Uploads.HMAC(nodeID, filename, w, h, ts)
 }
 
 func (n *Node) ParseUploadUrl(u *url.URL) (isUpload bool, uploadLocation upload.Folder, filename string, resize bool, w, h int, ts int64, sig []byte, err error) {
-	return upload.ParseUrl(n.db.Uploads, n.db.Uploads.Folder(n.Id()), u)
+	return upload.ParseUrl(n.db.Uploads, n.db.Uploads.Folder(n.ID()), u)
 }
 
 func (n *Node) String() string {
@@ -259,7 +259,7 @@ func (n *Node) String() string {
 }
 
 func (n *Node) Versions() ([]DBVersionStub, error) {
-	return n.db.Versions(n.Id())
+	return n.db.Versions(n.ID())
 }
 
 // AddChild adds a child node to the receiver node.
@@ -268,5 +268,5 @@ func (c *CoreDB) AddChild(n *Node, slug, className string) error {
 	if _, ok := c.ClassRegistry.Get(className); !ok {
 		return fmt.Errorf("class %s not found", className)
 	}
-	return c.InsertNode(n.DBNode.Id(), slug, className)
+	return c.InsertNode(n.DBNode.ID(), slug, className)
 }

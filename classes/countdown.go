@@ -26,27 +26,27 @@ func init() {
 type Countdown struct {
 	Raw    // for template execution
 	End    time.Time
-	NodeId int
+	NodeID int
 }
 
-func (t *Countdown) IdJS() template.JS {
-	return template.JS(t.NodeId)
+func (t *Countdown) IDJS() template.JS {
+	return template.JS(t.NodeID)
 }
 
 func (t *Countdown) Days() template.HTML {
-	return template.HTML(fmt.Sprintf(`<span id="days-%s">%02d</span>`, t.NodeId, t.End.Sub(time.Now()).Hours()/24))
+	return template.HTML(fmt.Sprintf(`<span id="days-%s">%02d</span>`, t.NodeID, t.End.Sub(time.Now()).Hours()/24))
 }
 
 func (t *Countdown) Hours() template.HTML {
-	return template.HTML(fmt.Sprintf(`<span id="hours-%s">%02d</span>`, t.NodeId, t.End.Sub(time.Now()).Hours()))
+	return template.HTML(fmt.Sprintf(`<span id="hours-%s">%02d</span>`, t.NodeID, t.End.Sub(time.Now()).Hours()))
 }
 
 func (t *Countdown) Minutes() template.HTML {
-	return template.HTML(fmt.Sprintf(`<span id="minutes-%s">%02d</span>`, t.NodeId, t.End.Sub(time.Now()).Minutes()))
+	return template.HTML(fmt.Sprintf(`<span id="minutes-%s">%02d</span>`, t.NodeID, t.End.Sub(time.Now()).Minutes()))
 }
 
 func (t *Countdown) Seconds() template.HTML {
-	return template.HTML(fmt.Sprintf(`<span id="seconds-%s">%02d</span>`, t.NodeId, t.End.Sub(time.Now()).Seconds()))
+	return template.HTML(fmt.Sprintf(`<span id="seconds-%s">%02d</span>`, t.NodeID, t.End.Sub(time.Now()).Seconds()))
 }
 
 func (t *Countdown) SetEnd(end string) (err error) {
@@ -56,7 +56,7 @@ func (t *Countdown) SetEnd(end string) (err error) {
 
 func (t *Countdown) Do(r *core.Route) error {
 
-	t.NodeId = r.Node.Id()
+	t.NodeID = r.Node.ID()
 
 	r.SetContent(
 		`{{define "head"}}
@@ -71,7 +71,7 @@ func (t *Countdown) Do(r *core.Route) error {
 					return n;
 				}
 
-				function countdown{{.T.IdJS}}() {
+				function countdown{{.T.IDJS}}() {
 
 					var end = {{.T.EndUnix}};
 					var now = Math.floor(new Date().getTime() / 1000);
@@ -88,30 +88,30 @@ func (t *Countdown) Do(r *core.Route) error {
 					var minutes = Math.floor(diff / 60);
 					var seconds = diff % 60;
 
-					elementDays = document.getElementById("days-{{.Node.Id}}");
+					elementDays = document.getElementById("days-{{.Node.ID}}");
 					if(elementDays) {
 						elementDays.innerHTML = days;
 					}
 
-					elementHours = document.getElementById("hours-{{.Node.Id}}");
+					elementHours = document.getElementById("hours-{{.Node.ID}}");
 					if(elementHours) {
 						elementHours.innerHTML = pad(hours);
 					}
 
-					elementMinutes = document.getElementById("minutes-{{.Node.Id}}");
+					elementMinutes = document.getElementById("minutes-{{.Node.ID}}");
 					if(elementMinutes) {
 						elementMinutes.innerHTML = pad(minutes);
 					}
 
-					elementSeconds = document.getElementById("seconds-{{.Node.Id}}");
+					elementSeconds = document.getElementById("seconds-{{.Node.ID}}");
 					if(elementSeconds) {
 						elementSeconds.innerHTML = pad(seconds);
 					}
 
-					setTimeout(countdown{{.T.IdJS}}, 1000);
+					setTimeout(countdown{{.T.IDJS}}, 1000);
 				}
 
-				countdown{{.T.IdJS}}();
+				countdown{{.T.IDJS}}();
 
 			</script>
 		{{end}}` + r.Content())

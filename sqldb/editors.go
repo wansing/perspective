@@ -31,18 +31,18 @@ func NewEditorsDB(db *sql.DB) *EditorsDB {
 	return editorsDB
 }
 
-func (e *EditorsDB) AssignWorkflowId(nodeId int, childrenOnly bool, workflowId int) error {
-	_, err := e.assign.Exec(nodeId, childrenOnly, workflowId)
+func (e *EditorsDB) AssignWorkflowID(nodeID int, childrenOnly bool, workflowID int) error {
+	_, err := e.assign.Exec(nodeID, childrenOnly, workflowID)
 	return err
 }
 
-func (e *EditorsDB) GetAssignedWorkflowId(nodeId int, childrenOnly bool) (int, error) {
-	var workflowId int
-	err := e.get.QueryRow(nodeId, childrenOnly).Scan(&workflowId)
+func (e *EditorsDB) GetAssignedWorkflowID(nodeID int, childrenOnly bool) (int, error) {
+	var workflowID int
+	err := e.get.QueryRow(nodeID, childrenOnly).Scan(&workflowID)
 	if err == sql.ErrNoRows {
 		return 0, nil
 	}
-	return workflowId, err
+	return workflowID, err
 }
 
 func (e *EditorsDB) GetAllWorkflowAssignments() (map[int]map[bool]int, error) {
@@ -52,20 +52,20 @@ func (e *EditorsDB) GetAllWorkflowAssignments() (map[int]map[bool]int, error) {
 	}
 	var all = make(map[int]map[bool]int)
 	for res.Next() {
-		var nodeId, workflowId int
+		var nodeID, workflowID int
 		var childrenOnly bool
-		if err = res.Scan(&nodeId, &childrenOnly, &workflowId); err != nil {
+		if err = res.Scan(&nodeID, &childrenOnly, &workflowID); err != nil {
 			return nil, err
 		}
-		if _, ok := all[nodeId]; !ok {
-			all[nodeId] = make(map[bool]int)
+		if _, ok := all[nodeID]; !ok {
+			all[nodeID] = make(map[bool]int)
 		}
-		all[nodeId][childrenOnly] = workflowId
+		all[nodeID][childrenOnly] = workflowID
 	}
 	return all, nil
 }
 
-func (e *EditorsDB) UnassignWorkflow(nodeId int, childrenOnly bool) error {
-	_, err := e.unassign.Exec(nodeId, childrenOnly)
+func (e *EditorsDB) UnassignWorkflow(nodeID int, childrenOnly bool) error {
+	_, err := e.unassign.Exec(nodeID, childrenOnly)
 	return err
 }

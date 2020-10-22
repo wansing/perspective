@@ -34,7 +34,7 @@ var chooseTmpl = tmpl(`{{ Breadcrumbs .Selected false }}
 					<td>{{ .WorkflowIndicator .Selected.DBNode }}</td>
 					<td>{{ .Selected.Slug }}</td>
 					<td>{{ .Selected.Class.Name }} ({{ .Selected.Class.Code }})</td>
-					<td>{{ .Selected.Id }}</td>
+					<td>{{ .Selected.ID }}</td>
 				</tr>
 				<tr class="table-light">
 					<td colspan="4" style="border-top: 0; text-align: center;">
@@ -65,7 +65,7 @@ var chooseTmpl = tmpl(`{{ Breadcrumbs .Selected false }}
 							<a class="btn btn-sm btn-secondary" href="choose/1{{ $.Selected.Location }}/{{ .Slug }}">{{ .Slug }}</a>
 						</td>
 						<td>{{ .ClassName }}</td>
-						<td>{{ .Id }}</td>
+						<td>{{ .ID }}</td>
 					</tr>
 				{{ else }}
 					<tr>

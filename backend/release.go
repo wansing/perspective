@@ -41,7 +41,7 @@ func release(w http.ResponseWriter, req *http.Request, ctx *context, params http
 		return errors.New("no release group")
 	}
 
-	if err = ctx.db.SetWorkflowGroup(selected, selectedVersion, (*releaseToGroup).Id()); err != nil {
+	if err = ctx.db.SetWorkflowGroup(selected, selectedVersion, (*releaseToGroup).ID()); err != nil {
 		return err
 	}
 

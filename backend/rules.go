@@ -70,7 +70,7 @@ func (data *rulesData) WorkflowAssignments() (result []struct {
 		return
 	}
 
-	for nodeId, nodeMap := range rawEditors {
+	for nodeID, nodeMap := range rawEditors {
 		for childrenOnly, workflow := range nodeMap {
 
 			var row = struct {
@@ -82,7 +82,7 @@ func (data *rulesData) WorkflowAssignments() (result []struct {
 				ChildrenOnly: childrenOnly,
 			}
 
-			row.InternalUrl, err = data.db.InternalPathByNodeId(nodeId)
+			row.InternalUrl, err = data.db.InternalPathByNodeID(nodeID)
 			if err != nil {
 				return
 			}
@@ -103,18 +103,18 @@ func (data *rulesData) Rules() ([]rule, error) {
 
 	result := make([]rule, 0, len(rawRules))
 
-	for nodeId, groupMap := range rawRules {
+	for nodeID, groupMap := range rawRules {
 
-		for groupId, permInt := range groupMap {
+		for groupID, permInt := range groupMap {
 
-			url, err := data.db.InternalPathByNodeId(nodeId)
+			url, err := data.db.InternalPathByNodeID(nodeID)
 			if err != nil {
 				return nil, err
 			}
 
-			grp, err := data.db.GetGroup(groupId)
+			grp, err := data.db.GetGroup(groupID)
 			if err != nil {
-				return nil, fmt.Errorf("error getting group %d: %v", groupId, err)
+				return nil, fmt.Errorf("error getting group %d: %v", groupID, err)
 			}
 
 			perm := core.Permission(permInt)
@@ -134,7 +134,7 @@ func (data *rulesData) Rules() ([]rule, error) {
 		result,
 		func(i, j int) bool {
 			if result[i].Url == result[j].Url {
-				return result[i].Group.Id() < result[j].Group.Id()
+				return result[i].Group.ID() < result[j].Group.ID()
 			}
 			return result[i].Url < result[j].Url
 		},
