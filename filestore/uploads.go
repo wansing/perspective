@@ -148,18 +148,14 @@ func (s *Store) HMAC(nodeID int, filename string, w int, h int, ts int64) string
 
 func (s *Store) ServeHTTP(writer http.ResponseWriter, req *http.Request) {
 
-	isUpload, loc, filename, resize, w, h, ts, sig, err := upload.ParseUrl(s, nil, req.URL) // req.URL seems to be always relative
+	path, filename, resize, w, h, ts, sig := upload.ParseUrl(req.URL) // req.URL seems to be always relative
+
+	var nodeID, err = strconv.Atoi(path)
 	if err != nil {
 		http.NotFound(writer, req)
 		return
 	}
-
-	if !isUpload {
-		http.NotFound(writer, req)
-		return
-	}
-
-	location := loc.(*Folder) // required for uploadFs()
+	var location = s.Folder(nodeID).(*Folder)
 
 	original := location.uploadsFs() + filename
 

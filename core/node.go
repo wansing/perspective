@@ -3,7 +3,6 @@ package core
 import (
 	"errors"
 	"fmt"
-	"net/url"
 
 	"github.com/wansing/perspective/upload"
 )
@@ -248,10 +247,6 @@ func (n *Node) Folder() upload.Folder {
 
 func (n *Node) HMAC(nodeID int, filename string, w int, h int, ts int64) string {
 	return n.db.Uploads.HMAC(nodeID, filename, w, h, ts)
-}
-
-func (n *Node) ParseUploadUrl(u *url.URL) (isUpload bool, uploadLocation upload.Folder, filename string, resize bool, w, h int, ts int64, sig []byte, err error) {
-	return upload.ParseUrl(n.db.Uploads, n.db.Uploads.Folder(n.ID()), u)
 }
 
 func (n *Node) String() string {

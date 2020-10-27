@@ -5,13 +5,14 @@ import (
 	pkghtml "html"
 	"io"
 	"net/url"
-	"path"
+	pathpkg "path"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/wansing/perspective/core"
+	"github.com/wansing/perspective/upload"
 	"github.com/wansing/perspective/util"
 	"golang.org/x/net/html"
 	"golang.org/x/net/html/atom"
@@ -44,6 +45,7 @@ func (t *HTML) Do(r *core.Route) error {
 	if err != nil {
 		return err
 	}
+
 	r.SetContent(rewritten)
 
 	return t.Raw.Do(r)
@@ -57,14 +59,6 @@ func rewriteHTML(reqPath string, node *core.Node, input io.Reader) (string, erro
 	}
 
 	// rewrite a-href and img-src
-	//
-	// See "func (e *Node) parseUploadUrl" for how the URL type (upload or node) is determined.
-
-	// Ambiguities: Does <a href="2019/foo.jpg"> link to an uploaded file or an node?
-	//
-	// Answer:
-	// - uploads and nodes share a namespace
-	// - node slugs must not contain dots
 
 	err = util.ForEachDomNode(domtree, func(domNode *html.Node) (bool, error) {
 
@@ -123,13 +117,23 @@ func rewriteHTML(reqPath string, node *core.Node, input io.Reader) (string, erro
 		}
 
 		// check if u is an upload
+		//
+		// Ambiguities in hrefs: Does <a href="2019/foo.jpg"> link to an uploaded file or an node? We consider it an upload if the filename contains a dot.
 
-		isUpload, location, filename, resize, w, h, _, _, err := node.ParseUploadUrl(u)
-		if err != nil {
-			return true, err
-		}
+		path, filename, resize, w, h, _, _ := upload.ParseUrl(u)
 
-		if isUpload {
+		if strings.Contains(filename, ".") {
+
+			var nodeID int
+
+			if path == "" {
+				nodeID = node.ID()
+			} else {
+				nodeID, err = strconv.Atoi(path)
+				if err != nil {
+					return true, nil
+				}
+			}
 
 			if resize {
 
@@ -151,12 +155,12 @@ func rewriteHTML(reqPath string, node *core.Node, input io.Reader) (string, erro
 
 				ts := time.Now().Unix()
 
-				filename += fmt.Sprintf("?w=%d&h=%d&ts=%d&sig=%s", w, h, ts, node.HMAC(location.NodeID(), filename, w, h, ts))
+				filename += fmt.Sprintf("?w=%d&h=%d&ts=%d&sig=%s", w, h, ts, node.HMAC(nodeID, filename, w, h, ts))
 			}
 
 			// always prepend upload folder
 
-			domNode.Attr[attrIdx].Val = fmt.Sprintf("/upload/%d/%s", location.NodeID(), filename)
+			domNode.Attr[attrIdx].Val = fmt.Sprintf("/upload/%d/%s", nodeID, filename)
 
 			return true, nil
 
@@ -178,14 +182,14 @@ func rewriteHTML(reqPath string, node *core.Node, input io.Reader) (string, erro
 				case "":
 					if u.Fragment == "" { // don't touch href="#foo"
 						if domNode.FirstChild != nil {
-							u.Path = path.Join(node.Link(), core.NormalizeSlug(domNode.FirstChild.Data)) // href from content
+							u.Path = pathpkg.Join(node.Link(), core.NormalizeSlug(domNode.FirstChild.Data)) // href from content
 						}
 					}
 				case ".":
 					u.Path = node.Link() // href to impression which contains it
 				default:
-					if !path.IsAbs(u.Path) { // don't touch absolute href
-						u.Path = path.Join(node.Link(), u.Path) // make path absolute
+					if !pathpkg.IsAbs(u.Path) { // don't touch absolute href
+						u.Path = pathpkg.Join(node.Link(), u.Path) // make path absolute
 					}
 				}
 
