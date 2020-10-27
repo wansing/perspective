@@ -71,7 +71,7 @@ func (c *CoreDB) Init(sessionStore scs.Store, cookiePath string) error {
 
 // AddAccessRule shadows AccessDB.InsertAccessRule.
 func (c *CoreDB) AddAccessRule(e *Node, groupID int, perm Permission) error {
-	var group, err = c.GroupDB.GetGroup(groupID)
+	var group, err = c.GetGroup(groupID)
 	if err != nil {
 		return err
 	}
