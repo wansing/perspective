@@ -4,8 +4,6 @@ import (
 	"strings"
 )
 
-const DefaultVersion = 0 // latest version or latest release, depending on where it's used
-
 // A Queue stores the slugs that have not been processed yet.
 // We don't care whether there is trailing slash, but some http.Handlers do (used in core.Handler) and redirect accordingly, so we must keep that information.
 type Queue struct {
