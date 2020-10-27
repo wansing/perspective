@@ -5,6 +5,7 @@ import (
 	"context"
 	"net/http"
 	"net/url"
+	"path"
 )
 
 // responseWriter implements http.ResponseWriter.
@@ -32,7 +33,7 @@ func (w *responseWriter) Write(b []byte) (int, error) {
 // It prepends the path, so subrouters like Handler.Handler do HTTP redirects easily (e.g. to a cleaned version of the path, or to a version with removed or added trailing slashes).
 func (w *responseWriter) WriteHeader(statusCode int) {
 	if location := w.Header().Get("Location"); location != "" {
-		w.Header().Set("Location", w.prefix+location)
+		w.Header().Set("Location", path.Join(w.prefix, location))
 	}
 	w.writer.WriteHeader(statusCode)
 }
@@ -69,7 +70,7 @@ func (t *Handler) Do(r *Route) error {
 	}
 
 	var writer = &responseWriter{
-		prefix: r.Node.Location(),
+		prefix: r.Node.Link(),
 		writer: r.writer,
 	}
 
