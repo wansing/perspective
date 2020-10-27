@@ -6,40 +6,48 @@ import (
 
 const DefaultVersion = 0 // latest version or latest release, depending on where it's used
 
-type Queue []string
+// A Queue stores the slugs that have not been processed yet.
+// We don't care whether there is trailing slash, but some http.Handlers do (used in core.Handler) and redirect accordingly, so we must keep that information.
+type Queue struct {
+	Slugs         []string
+	TrailingSlash bool
+}
 
 // NewQueue creates a queue from the given path.
 // Subsequent slashes are collapsed.
 func NewQueue(path string) *Queue {
-	fields := strings.FieldsFunc(path, func(c rune) bool {
+	slugs := strings.FieldsFunc(path, func(c rune) bool {
 		return c == 47 // slash
 	})
-	var q = Queue(fields)
-	return &q
+	var q = &Queue{
+		Slugs:         slugs,
+		TrailingSlash: len(slugs) > 0 && strings.HasSuffix(path, "/"),
+	}
+	return q
 }
 
 func (q *Queue) HasPrefix(slug string) bool {
-	return q.Len() > 0 && (*q)[0] == slug
+	return q.Len() > 0 && q.Slugs[0] == slug
 }
 
 func (q *Queue) IsEmpty() bool {
-	return len(*q) == 0
+	return q.Len() == 0
 }
 
 func (q *Queue) Len() int {
-	return len(*q)
+	return len(q.Slugs)
 }
 
 func (q *Queue) Pop() (slug string, ok bool) {
 	if q.Len() > 0 {
-		slug, (*q) = (*q)[0], (*q)[1:]
+		slug, q.Slugs = q.Slugs[0], q.Slugs[1:]
 		ok = true
 	}
 	return
 }
 
 func (q *Queue) PopIf(slug string) bool {
-	if q.Len() > 0 && (*q)[0] == slug {
+	if q.Len() > 0 && q.Slugs[0] == slug {
 		q.Pop()
 		return true
 	}
@@ -47,10 +55,14 @@ func (q *Queue) PopIf(slug string) bool {
 }
 
 func (q *Queue) push(slug string) interface{} {
-	*q = append([]string{slug}, *q...)
+	q.Slugs = append([]string{slug}, q.Slugs...)
 	return nil
 }
 
 func (q *Queue) String() string {
-	return "/" + strings.Join(*q, "/")
+	var str = "/" + strings.Join(q.Slugs, "/")
+	if q.TrailingSlash && !strings.HasSuffix(str, "/") {
+		str = str + "/"
+	}
+	return str
 }

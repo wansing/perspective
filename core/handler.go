@@ -5,7 +5,7 @@ import (
 	"context"
 	"net/http"
 	"net/url"
-	"path"
+	"strings"
 )
 
 // responseWriter implements http.ResponseWriter.
@@ -34,7 +34,9 @@ func (w *responseWriter) Write(b []byte) (int, error) {
 func (w *responseWriter) WriteHeader(statusCode int) {
 	// it is easier to modify the Location header now instead of wrapping http.Header
 	if location := w.Header().Get("Location"); location != "" {
-		w.Header().Set("Location", path.Join(w.prefix, location))
+		// we're not using path.Join because we must keep trailing slash
+		var joined = strings.ReplaceAll(w.prefix+location, "//", "/")
+		w.Header().Set("Location", joined)
 	}
 	w.writer.WriteHeader(statusCode)
 }
@@ -52,7 +54,7 @@ func (t *Handler) AdditionalSlugs() []string {
 func (t *Handler) Do(r *Route) error {
 
 	var path = r.Queue.String()
-	r.Queue = nil // clear queue
+	r.Queue = &Queue{} // clear queue
 
 	// no need to call r.Recurse because the queue is empty anyway
 
