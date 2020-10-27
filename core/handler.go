@@ -32,6 +32,7 @@ func (w *responseWriter) Write(b []byte) (int, error) {
 // WriteHeader forwards to the real ResponseWriter.
 // It prepends the path, so subrouters like Handler.Handler do HTTP redirects easily (e.g. to a cleaned version of the path, or to a version with removed or added trailing slashes).
 func (w *responseWriter) WriteHeader(statusCode int) {
+	// it is easier to modify the Location header now instead of wrapping http.Header
 	if location := w.Header().Get("Location"); location != "" {
 		w.Header().Set("Location", path.Join(w.prefix, location))
 	}
