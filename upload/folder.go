@@ -33,7 +33,7 @@ func CleanFilename(filename string) (string, error) {
 	return filename, nil
 }
 
-// Creates an HMAC of a resized uploaded file. UploadStore implementations can use it to prevent DoS attacks on image resizing.
+// Creates an HMAC of a resized uploaded file. Store implementations can use it to prevent DoS attacks on image resizing.
 func HMAC(secret []byte, nodeID int, filename string, w int, h int, ts int64) string {
 
 	buf := make([]byte, 32)

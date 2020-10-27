@@ -26,11 +26,11 @@ type Folder struct {
 	nodeID int
 }
 
-func (f Folder) formatCached(w, h int, filename string) string {
+func (f Folder) stattPattern(w, h int, filename string) string {
 	return fmt.Sprintf("%s/%d_%d_%d_%s", f.store.CacheDir, f.nodeID, w, h, filename)
 }
 
-func (f Folder) formatCacheds(filename string) string {
+func (f Folder) stattPatternAll(filename string) string {
 	return fmt.Sprintf("%s/%d_*_*_%s", f.store.CacheDir, f.nodeID, filename)
 }
 
@@ -50,7 +50,7 @@ func (f Folder) Delete(filename string) error {
 		return err
 	}
 
-	cacheds, err := filepath.Glob(f.formatCacheds(filename))
+	cacheds, err := filepath.Glob(f.stattPatternAll(filename))
 	if err != nil {
 		return err
 	}
@@ -184,7 +184,7 @@ func (s *Store) ServeHTTP(writer http.ResponseWriter, req *http.Request) {
 
 	// requested filename reflects the parsed URL
 
-	requested := location.formatCached(w, h, filename)
+	requested := location.stattPattern(w, h, filename)
 
 	// create requested file (as a symlink to the canonical filename if required)
 
@@ -236,7 +236,7 @@ func (s *Store) ServeHTTP(writer http.ResponseWriter, req *http.Request) {
 
 			// w and h are always genuine (and especially non-zero) now
 
-			var canonical = location.formatCached(w, h, filename) // with real width and height
+			var canonical = location.stattPattern(w, h, filename) // with real width and height
 
 			// resize
 
