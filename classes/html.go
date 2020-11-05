@@ -118,11 +118,11 @@ func rewriteHTML(reqPath string, node *core.Node, input io.Reader) (string, erro
 
 		// check if u is an upload
 		//
-		// Ambiguities in hrefs: Does <a href="2019/foo.jpg"> link to an uploaded file or an node? We consider it an upload if the filename contains a dot.
+		// Ambiguities in hrefs: Does <a href="2019/foo.jpg"> link to an uploaded file or an node? We consider it an upload if the filename contains a dot (except ".").
 
 		path, filename, resize, w, h, _, _ := upload.ParseUrl(u)
 
-		if strings.Contains(filename, ".") {
+		if strings.Contains(filename, ".") && filename != "." {
 
 			var nodeID int
 
