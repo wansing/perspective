@@ -26,11 +26,11 @@ type Folder struct {
 	nodeID int
 }
 
-func (f Folder) stattPattern(w, h int, filename string) string {
+func (f Folder) statPattern(w, h int, filename string) string {
 	return fmt.Sprintf("%s/%d_%d_%d_%s", f.store.CacheDir, f.nodeID, w, h, filename)
 }
 
-func (f Folder) stattPatternAll(filename string) string {
+func (f Folder) statPatternAll(filename string) string {
 	return fmt.Sprintf("%s/%d_*_*_%s", f.store.CacheDir, f.nodeID, filename)
 }
 
@@ -50,7 +50,7 @@ func (f Folder) Delete(filename string) error {
 		return err
 	}
 
-	cacheds, err := filepath.Glob(f.stattPatternAll(filename))
+	cacheds, err := filepath.Glob(f.statPatternAll(filename))
 	if err != nil {
 		return err
 	}
@@ -180,7 +180,7 @@ func (s *Store) ServeHTTP(writer http.ResponseWriter, req *http.Request) {
 
 	// requested filename reflects the parsed URL
 
-	requested := location.stattPattern(w, h, filename)
+	requested := location.statPattern(w, h, filename)
 
 	// create requested file (as a symlink to the canonical filename if required)
 
@@ -219,8 +219,15 @@ func (s *Store) ServeHTTP(writer http.ResponseWriter, req *http.Request) {
 
 			// don't scale up, symlink to original image instead
 
-			err := os.Symlink(original, requested)
+			// os.Symlink: first argument (target) should be relative to second argument (symlink)
+
+			target, err := filepath.Rel(s.CacheDir, original)
 			if err != nil {
+				http.NotFound(writer, req)
+				return
+			}
+
+			if err = os.Symlink(target, requested); err != nil {
 				http.NotFound(writer, req)
 				return
 			}
@@ -232,7 +239,7 @@ func (s *Store) ServeHTTP(writer http.ResponseWriter, req *http.Request) {
 
 			// w and h are always genuine (and especially non-zero) now
 
-			var canonical = location.stattPattern(w, h, filename) // with real width and height
+			var canonical = location.statPattern(w, h, filename) // with real width and height
 
 			// resize
 
@@ -245,8 +252,9 @@ func (s *Store) ServeHTTP(writer http.ResponseWriter, req *http.Request) {
 			// symlink canonical filename to requested filename, if necessary
 
 			if canonical != requested {
-				err := os.Symlink(canonical, requested)
-				if err != nil {
+				// os.Symlink: first argument (target) should be relative to second argument (symlink), the filename fulfils this criterion
+				_, target := filepath.Split(canonical)
+				if err := os.Symlink(target, requested); err != nil {
 					http.NotFound(writer, req)
 					return
 				}
@@ -291,9 +299,9 @@ func (Vips) Resize(original, resized string, width, height int) error {
 func FindResizer() (JPEGResizer, error) {
 	if _, err := exec.LookPath("vips"); err == nil {
 		return Vips{}, nil
-	} else if _, err := exec.LookPath("convert"); err == nil {
-		return ImageMagick{}, nil
-	} else {
-		return nil, errors.New("no JPEG resizer found")
 	}
+	if _, err := exec.LookPath("convert"); err == nil {
+		return ImageMagick{}, nil
+	}
+	return nil, errors.New("no JPEG resizer found")
 }

@@ -60,8 +60,8 @@ func (c *CoreDB) Init(sessionStore scs.Store, cookiePath string) error {
 	}
 
 	c.Uploads = &filestore.Store{
-		CacheDir:   "./cache",
-		UploadDir:  "./uploads",
+		CacheDir:   ".thumbnails", // or "./.thumbnails"
+		UploadDir:  "uploads",     // or "./uploads"
 		HMACSecret: []byte(c.HMACSecret),
 		Resizer:    resizer,
 	}
