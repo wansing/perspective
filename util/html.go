@@ -3,6 +3,7 @@ package util
 import (
 	"bytes"
 	"io"
+	"strings"
 
 	"golang.org/x/net/html"
 )
@@ -13,9 +14,9 @@ func AnchorHeading(input io.Reader, anchor string) io.Reader {
 	tokenizer := html.NewTokenizerFragment(input, "body")
 	tokenizer.SetMaxBuf(4096) // roughly the maximum number of bytes tokenized
 
-	var modified = &bytes.Buffer{} // strings.Builder does not implement io.Reader
-	var offset = 0
+	var bytesRead = 0
 	var linkedTag string
+	var modified = &bytes.Buffer{} // strings.Builder does not implement io.Reader
 
 	for {
 
@@ -47,12 +48,12 @@ func AnchorHeading(input io.Reader, anchor string) io.Reader {
 
 		modified.Write(tokenizer.Raw())
 
-		offset += len(tokenizer.Raw())
-		if offset > 4000 && linkedTag == "" {
+		bytesRead += len(tokenizer.Raw())
+		if bytesRead > 4000 && linkedTag == "" {
 			// case B: neither <a> nor </a> have been written
 			break
 		}
-		if offset > 8000 {
+		if bytesRead > 8000 {
 			// case C: <a> has been written but </a> has not
 			break
 		}
@@ -71,7 +72,9 @@ func Heading(input io.Reader) string {
 	tokenizer := html.NewTokenizerFragment(input, "body")
 	tokenizer.SetMaxBuf(4096) // roughly the maximum number of bytes tokenized
 
-	var offset = 0
+	var bytesRead = 0
+	var headingTag = ""
+	var output = &strings.Builder{}
 
 	for {
 
@@ -83,14 +86,19 @@ func Heading(input io.Reader) string {
 		tagNameBytes, _ := tokenizer.TagName()
 		tagName := string(tagNameBytes)
 
-		if tt == html.StartTagToken {
-			if tagName == "h1" || tagName == "h2" || tagName == "h3" || tagName == "h4" {
-				return string(tokenizer.Raw())
+		if headingTag == "" {
+			if tt == html.StartTagToken && (tagName == "h1" || tagName == "h2" || tagName == "h3" || tagName == "h4") {
+				headingTag = tagName
 			}
+		} else {
+			if tt == html.EndTagToken && tagName == headingTag {
+				return output.String()
+			}
+			output.Write(tokenizer.Raw())
 		}
 
-		offset += len(tokenizer.Raw())
-		if offset > 4000 {
+		bytesRead += len(tokenizer.Raw())
+		if bytesRead > 4000 {
 			break
 		}
 	}
