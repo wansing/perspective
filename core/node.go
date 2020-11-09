@@ -108,7 +108,7 @@ func (c *CoreDB) NewNode(parent *Node, dbNode DBNode) *Node {
 func (n *Node) GetVersion(versionNo int) (*Version, error) {
 	v, err := n.db.GetVersion(n.ID(), versionNo)
 	if err != nil {
-		return nil, fmt.Errorf("version %d of node %d: %w", versionNo, n.ID(), err)
+		return nil, fmt.Errorf("node %s, version %d: %w", n.Location(), versionNo, err)
 	}
 	return NewVersion(v), nil
 }
