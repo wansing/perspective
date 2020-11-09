@@ -54,23 +54,20 @@ var chooseTmpl = tmpl(`{{ Breadcrumbs .Selected false }}
 					</td>
 				</tr>
 
-				<tr>
-					<th colspan="4">Children</th>
-				</tr>
-
-				{{ range .Children }}
+				{{ if len .Children}}
 					<tr>
-						<td>{{ $.WorkflowIndicator . }} </td>
-						<td>
-							<a class="btn btn-sm btn-secondary" href="choose/1{{ $.Selected.Location }}/{{ .Slug }}">{{ .Slug }}</a>
-						</td>
-						<td>{{ .ClassName }}</td>
-						<td>{{ .ID }}</td>
+						<th colspan="4">Children</th>
 					</tr>
-				{{ else }}
-					<tr>
-						<td colspan="4">none</td>
-					<tr>
+					{{ range .Children }}
+						<tr>
+							<td>{{ $.WorkflowIndicator . }} </td>
+							<td>
+								<a class="btn btn-sm btn-secondary" href="choose/1{{ $.Selected.Location }}/{{ .Slug }}">{{ .Slug }}</a>
+							</td>
+							<td>{{ .ClassName }}</td>
+							<td>{{ .ID }}</td>
+						</tr>
+					{{ end }}
 				{{ end }}
 			</tbody>
 		</table>
