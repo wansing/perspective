@@ -68,7 +68,7 @@ func rename(w http.ResponseWriter, req *http.Request, ctx *context, params httpr
 		newSlug = req.PostFormValue("slug")
 
 		if err = ctx.db.SetSlug(selected, newSlug); err == nil {
-			ctx.SeeOther("/choose/1%s", selected.Location()) // TODO SetSlug didn't update selected, we're redirected to the old location
+			ctx.SeeOther("/choose/1%s", selected.Location())
 			return nil
 		} else {
 			ctx.Danger(err)
