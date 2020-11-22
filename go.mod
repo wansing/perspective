@@ -6,6 +6,7 @@ require (
 	github.com/alexedwards/scs/mysqlstore v0.0.0-20200729112010-8c9ddd400378
 	github.com/alexedwards/scs/sqlite3store v0.0.0-20200729112010-8c9ddd400378
 	github.com/alexedwards/scs/v2 v2.4.0
+	github.com/icza/gox v0.0.0-20200702115100-7dc3510ae515
 	github.com/julienschmidt/httprouter v1.3.0
 	github.com/mattn/go-sqlite3 v2.0.3+incompatible
 	github.com/shurcooL/httpfs v0.0.0-20190707220628-8d4bc4ba7749 // indirect

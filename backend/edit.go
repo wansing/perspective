@@ -158,7 +158,7 @@ var editTmpl = tmpl(`{{ Breadcrumbs .Selected true }}
 
 	{{ with .Info }}
 		<a class="collapse-link">
-			<h2>Information on the class {{ $.Selected.Class.Name }}</h2>
+			<h2>{{ $.Selected.Class.Name }}</h2>
 		</a>
 		<div>
 			{{ . }}
