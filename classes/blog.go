@@ -39,28 +39,28 @@ func init() {
 			</div>
 		{{end}}
 
-		{{if .T.Next}}
-			{{template "metadata" .T.Next}}
-			{{.Get "body"}}
+		{{if .Next}}
+			{{template "metadata" .Next}}
+			{{.Route.Get "body"}}
 			<div class="blog-blogentry-back">
-				<a onclick="javascript:window.history.back(); return false;" href="{{.Link}}">Zurück</a>
+				<a onclick="javascript:window.history.back(); return false;" href="{{.Route.Node.Link}}">Zurück</a>
 			</div>
 		{{else}}
-			{{range .T.Children}}
+			{{range .Children}}
 				<div class="blog-blogentry">
 					{{template "metadata" .}}
 					<div class="blog-blogentry-teaser">
 						{{.Body}}
 						{{if .Cut}}
 							<p class="blog-blogentry-more">
-								<a href="{{.Link}}">{{$.T.ReadMore}}</a>
+								<a href="{{.Route.Node.Link}}">{{$.ReadMore}}</a>
 							</p>
 						{{end}}
 					</div>
 				</div>
 			{{end}}
 			<div class="blog-pagelinks">
-				{{range .T.PageLinks}}
+				{{range .PageLinks}}
 					{{.}}
 				{{end}}
 			</div>
@@ -82,14 +82,12 @@ func init() {
 }
 
 type Blog struct {
-	core.Base
-	Children  []*blogChild
-	Next      *blogNode // pointer so it can be nil
-	page      int       // starting with 1
+	page      int // starting with 1
 	PageLinks []template.HTML
 	pages     int
 	perPage   int
 	ReadMore  string
+	Route     *core.Route
 	tmpl      *template.Template
 }
 
@@ -99,10 +97,69 @@ type blogNode struct {
 	*core.Request
 }
 
+func (t *Blog) Next() *blogNode {
+	if len(t.Route.Next) > 0 {
+		return &blogNode{
+			NodeVersion: t.Route.Next[0],
+			Request:     t.Route.Request,
+		}
+	}
+	return nil
+}
+
 type blogChild struct {
 	blogNode
 	Body template.HTML
 	Cut  bool
+}
+
+func (t *Blog) Children() ([]*blogChild, error) {
+
+	children, err := t.Route.Node.GetReleasedChildren(t.Route.User, core.ChronologicallyDesc, t.perPage, (t.page-1)*t.perPage)
+	if err != nil {
+		return nil, err
+	}
+
+	var result = make([]*blogChild, 0, len(children))
+
+	for _, child := range children {
+
+		// render body
+
+		childRoute := &core.Route{
+			Node:    child.Node,
+			Version: child.Version,
+			Request: t.Route.Request,
+			Queue:   core.NewQueue(""),
+		}
+
+		if err := child.Do(childRoute); err != nil {
+			return nil, err
+		}
+
+		body, cut := util.CutMore(string(childRoute.Get("body")))
+
+		bodyBytes, err := ioutil.ReadAll(
+			util.AnchorHeading(
+				strings.NewReader(body),
+				fmt.Sprintf(`<a href="%s" class="%s" id="%s">`, child.Link(), "blog-blogentry-headline", child.Slug()),
+			),
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		result = append(result, &blogChild{
+			blogNode: blogNode{
+				NodeVersion: child,
+				Request:     t.Route.Request,
+			},
+			Body: template.HTML(bodyBytes),
+			Cut:  cut,
+		})
+	}
+
+	return result, nil
 }
 
 func (t *Blog) AdditionalSlugs() []string {
@@ -113,6 +170,8 @@ func (t *Blog) AdditionalSlugs() []string {
 }
 
 func (t *Blog) Do(r *core.Route) error {
+
+	t.Route = r
 
 	// take segment page/123 from queue before calling Recurse
 
@@ -163,58 +222,6 @@ func (t *Blog) Do(r *core.Route) error {
 		t.ReadMore = "Read more"
 	}
 
-	if len(r.Next) > 0 {
-		t.Next = &blogNode{
-			NodeVersion: r.Next[0],
-			Request:     r.Request,
-		}
-	} else {
-
-		// Populate Children. This is not a func on Blog because we need stuff from Route for the localization.
-
-		children, err := r.Node.GetReleasedChildren(r.User, core.ChronologicallyDesc, t.perPage, (t.page-1)*t.perPage)
-		if err != nil {
-			return err
-		}
-
-		for _, child := range children {
-
-			// render body
-
-			childRoute := &core.Route{
-				Node:    child.Node,
-				Version: child.Version,
-				Request: r.Request,
-				Queue:   core.NewQueue(""),
-			}
-
-			if err := child.Do(childRoute); err != nil {
-				return err
-			}
-
-			body, cut := util.CutMore(string(childRoute.Get("body")))
-
-			bodyBytes, err := ioutil.ReadAll(
-				util.AnchorHeading(
-					strings.NewReader(body),
-					fmt.Sprintf(`<a href="%s" class="%s" id="%s">`, child.Link(), "blog-blogentry-headline", child.Slug()),
-				),
-			)
-			if err != nil {
-				return err
-			}
-
-			t.Children = append(t.Children, &blogChild{
-				blogNode: blogNode{
-					NodeVersion: child,
-					Request:     r.Request,
-				},
-				Body: template.HTML(bodyBytes),
-				Cut:  cut,
-			})
-		}
-	}
-
 	t.PageLinks = util.PageLinks(
 		t.page,
 		t.pages,
@@ -227,7 +234,7 @@ func (t *Blog) Do(r *core.Route) error {
 	)
 
 	buf := &bytes.Buffer{}
-	if err := t.tmpl.Execute(buf, r); err != nil {
+	if err := t.tmpl.Execute(buf, t); err != nil {
 		return err
 	}
 	r.Set("body", buf.String())

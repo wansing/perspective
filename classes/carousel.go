@@ -19,9 +19,12 @@ func init() {
 }
 
 type Carousel struct {
-	core.Base
 	CarouselID string
 	Files      []os.FileInfo
+}
+
+func (t *Carousel) AdditionalSlugs() []string {
+	return nil
 }
 
 func (t *Carousel) Do(r *core.Route) error {
@@ -40,22 +43,22 @@ func (t *Carousel) Do(r *core.Route) error {
 
 	// ignore existing content
 	r.SetContent(
-		`<div id="{{ .T.CarouselID }}" class="carousel slide" data-ride="carousel">
+		`<div id="{{ .CarouselID }}" class="carousel slide" data-ride="carousel">
 			<ol class="carousel-indicators">
-				{{ range $index, $file := .T.Files }}
-					<li data-target="#{{ $.T.CarouselID }}" data-slide-to="{{ $index }}"></li>
+				{{ range $index, $file := .Files }}
+					<li data-target="#{{ $.CarouselID }}" data-slide-to="{{ $index }}"></li>
 				{{ end }}
 			</ol>
 			<div class="carousel-inner">
-				{{ range $index, $file := .T.Files }}
+				{{ range $index, $file := .Files }}
 					<div class="carousel-item{{ if eq $index 0 }} active{{ end }}"><img class="d-block w-100" src="/upload/{{ $.Node.ID }}/{{ $file.Name }}"></div>
 				{{ end }}
 			</div>
-			<a class="carousel-control-prev" href="#{{ .T.CarouselID }}" role="button" data-slide="prev">
+			<a class="carousel-control-prev" href="#{{ .CarouselID }}" role="button" data-slide="prev">
 				<span class="carousel-control-prev-icon" aria-hidden="true"></span>
 				<span class="sr-only">Previous</span>
 			</a>
-			<a class="carousel-control-next" href="#{{ .T.CarouselID }}" role="button" data-slide="next">
+			<a class="carousel-control-next" href="#{{ .CarouselID }}" role="button" data-slide="next">
 				<span class="carousel-control-next-icon" aria-hidden="true"></span>
 				<span class="sr-only">Next</span>
 			</a>

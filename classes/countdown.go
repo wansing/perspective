@@ -21,14 +21,14 @@ func init() {
 		Code: "countdown",
 		Info: `<p>Countdown respects leap years and daylight saving time. Use it like this:</p>
 
-<pre><code>{{.T.SetEnd "1 Jan 2100 12:00:00 -0100"}}
-{{.T.Years}} years {{.T.Months}} months {{.T.Days}} days {{.T.Hours}} hours {{.T.Minutes}} minutes {{.T.Seconds}} seconds left
+<pre><code>{{.SetEnd "1 Jan 2100 12:00:00 -0100"}}
+{{.Years}} years {{.Months}} months {{.Days}} days {{.Hours}} hours {{.Minutes}} minutes {{.Seconds}} seconds left
 </code></pre>`,
 	})
 }
 
 type Countdown struct {
-	Raw         // for template execution
+	Raw         // provides template execution
 	End         time.Time
 	CountdownID string // random string, so multiple instances of countdown won't collide
 	Years       template.HTML
@@ -61,6 +61,11 @@ func (t *Countdown) CountdownIDJS() template.JS {
 	return template.JS(t.CountdownID)
 }
 
+func (t *Countdown) AdditionalSlugs() []string {
+	return nil
+}
+
+// shadows Raw.Do
 func (t *Countdown) Do(r *core.Route) error {
 
 	var countdownID = make([]byte, 6)
@@ -82,13 +87,13 @@ func (t *Countdown) Do(r *core.Route) error {
 					return n;
 				}
 
-				function countdown{{.T.CountdownIDJS}}() {
+				function countdown{{.CountdownIDJS}}() {
 
 					// inspired from https://github.com/icza/gox/blob/master/timex/timex.go
 					// assuming both are in the same location
 
 					let a = new Date();
-					let b = new Date({{.T.End.Unix}} * 1000); // constructor takes milliseconds
+					let b = new Date({{.End.Unix}} * 1000); // constructor takes milliseconds
 
 					if(a > b) {
 						console.log("too late ", a, b);
@@ -144,43 +149,44 @@ func (t *Countdown) Do(r *core.Route) error {
 						years--;
 					}
 
-					elementYears = document.getElementById("years-{{.T.CountdownID}}");
+					elementYears = document.getElementById("years-{{.CountdownID}}");
 					if(elementYears) {
 						elementYears.innerHTML = years;
 					}
 
-					elementMonths = document.getElementById("months-{{.T.CountdownID}}");
+					elementMonths = document.getElementById("months-{{.CountdownID}}");
 					if(elementMonths) {
 						elementMonths.innerHTML = months;
 					}
 
-					elementDays = document.getElementById("days-{{.T.CountdownID}}");
+					elementDays = document.getElementById("days-{{.CountdownID}}");
 					if(elementDays) {
 						elementDays.innerHTML = days;
 					}
 
-					elementHours = document.getElementById("hours-{{.T.CountdownID}}");
+					elementHours = document.getElementById("hours-{{.CountdownID}}");
 					if(elementHours) {
 						elementHours.innerHTML = pad(hours);
 					}
 
-					elementMinutes = document.getElementById("minutes-{{.T.CountdownID}}");
+					elementMinutes = document.getElementById("minutes-{{.CountdownID}}");
 					if(elementMinutes) {
 						elementMinutes.innerHTML = pad(mins);
 					}
 
-					elementSeconds = document.getElementById("seconds-{{.T.CountdownID}}");
+					elementSeconds = document.getElementById("seconds-{{.CountdownID}}");
 					if(elementSeconds) {
 						elementSeconds.innerHTML = pad(secs);
 					}
 
-					setTimeout(countdown{{.T.CountdownIDJS}}, 1000);
+					setTimeout(countdown{{.CountdownIDJS}}, 1000);
 				}
 
-				countdown{{.T.CountdownIDJS}}();
+				countdown{{.CountdownIDJS}}();
 
 			</script>
 		{{end}}` + r.Content())
 
-	return t.Raw.Do(r)
+	// don't call t.Raw.Do, call t.Raw.ParseAndExecute with own data instead
+	return t.Raw.ParseAndExecute(r, t)
 }

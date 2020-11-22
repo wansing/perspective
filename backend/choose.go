@@ -64,7 +64,7 @@ var chooseTmpl = tmpl(`{{ Breadcrumbs .Selected false }}
 							<td>
 								<a class="btn btn-sm btn-secondary" href="choose/1{{ $.Selected.Location }}/{{ .Slug }}">{{ .Slug }}</a>
 							</td>
-							<td>{{ .ClassName }}</td>
+							<td>{{ .ClassCode }}</td>
 							<td>{{ .ID }}</td>
 						</tr>
 					{{ end }}
@@ -87,7 +87,7 @@ type chooseData struct {
 }
 
 func (data *chooseData) Children() ([]*core.Node, error) {
-	return data.Selected.GetChildren(data.Request.User, data.Selected.Class.SelectOrder, SelectPerPage, (data.page-1)*SelectPerPage)
+	return data.Selected.GetChildren(data.Request.User, data.Selected.Class().SelectOrder, SelectPerPage, (data.page-1)*SelectPerPage)
 }
 
 func (data *chooseData) PageLinks() []template.HTML {

@@ -29,7 +29,7 @@ type Route struct {
 	*Version                     // version of current node
 	Next     []NodeVersion       // executed nodes
 	Recursed map[int]interface{} // avoids double recursion
-	RootUrl  string              // "/" for main route, "/" or include base for included routes, TODO use it
+	RootURL  string              // "/" for main route, "/" or include base for included routes, TODO use it
 	Vars     map[string]string   // node output
 	VarDepth map[string]int      // must be stored for each var separately
 }
@@ -37,11 +37,6 @@ type Route struct {
 // RouteFromContext gets a Route from the given context. It can panic.
 func RouteFromContext(ctx context.Context) *Route {
 	return ctx.Value(routeContextKey{}).(*Route)
-}
-
-// T returns the instance of the current node.
-func (r *Route) T() interface{} {
-	return r.Node.Instance
 }
 
 // Example: {{ .Include "/stuff" "footer" "body" }}

@@ -33,7 +33,11 @@ type setClassData struct {
 }
 
 func (data *setClassData) SelectChildClass() template.HTML {
-	return SelectChildClass(data.db.ClassRegistry, data.Selected.Parent, data.NewClass)
+	var featuredChildClasses []string
+	if data.Selected.Parent != nil {
+		featuredChildClasses = data.Selected.Parent.Class().FeaturedChildClasses
+	}
+	return SelectChildClass(data.db.ClassRegistry, featuredChildClasses, data.NewClass)
 }
 
 func setClass(w http.ResponseWriter, req *http.Request, ctx *context, params httprouter.Params) error {
@@ -43,7 +47,7 @@ func setClass(w http.ResponseWriter, req *http.Request, ctx *context, params htt
 		return err
 	}
 
-	var newClass = selected.Class.Code
+	var newClass = selected.Class().Code
 
 	// check permission
 

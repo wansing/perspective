@@ -235,15 +235,15 @@ func (c *CoreDB) Open(user DBUser, parent *Node, queue *Queue) (*Node, error) {
 }
 
 // SetClass shadows NodeDB.SetClass.
-func (c *CoreDB) SetClass(n *Node, className string) error {
-	className = strings.TrimSpace(className)
-	if className == "" {
+func (c *CoreDB) SetClass(n *Node, classCode string) error {
+	classCode = strings.TrimSpace(classCode)
+	if classCode == "" {
 		return errors.New("class can't be empty")
 	}
-	if _, ok := c.ClassRegistry.Get(className); !ok {
-		return fmt.Errorf("class %s not found", className)
+	if _, ok := c.ClassRegistry.Get(classCode); !ok {
+		return fmt.Errorf("class %s not found", classCode)
 	}
-	return c.NodeDB.SetClass(n.DBNode, className)
+	return c.NodeDB.SetClass(n.DBNode, classCode)
 }
 
 // SetParent shadows NodeDB.SetParent.

@@ -36,7 +36,7 @@ type node struct {
 	id                 int
 	parentID           int
 	slug               string
-	className          string
+	classCode          string
 	tsCreated          int64
 	maxVersionNo       int
 	maxWGZeroVersionNo int
@@ -55,8 +55,8 @@ func (e *node) Slug() string {
 	return e.slug
 }
 
-func (e *node) ClassName() string {
-	return e.className
+func (e *node) ClassCode() string {
+	return e.classCode
 }
 
 func (e *node) TsCreated() int64 {
@@ -247,14 +247,14 @@ func (db *NodeDB) DeleteNode(e core.DBNode) error {
 
 func (db *NodeDB) GetNodeByID(id int) (core.DBNode, error) {
 	var n = &node{}
-	return n, db.getNodeByID.QueryRow(id).Scan(&n.id, &n.parentID, &n.slug, &n.className, &n.tsCreated, &n.maxVersionNo, &n.maxWGZeroVersionNo)
+	return n, db.getNodeByID.QueryRow(id).Scan(&n.id, &n.parentID, &n.slug, &n.classCode, &n.tsCreated, &n.maxVersionNo, &n.maxWGZeroVersionNo)
 }
 
 // may return sql.ErrNoRows
 // we could do a database join instead of getting node and version separately, but that would triple some code
 func (db *NodeDB) GetNodeBySlug(parentID int, slug string) (core.DBNode, error) {
 	var e = &node{}
-	return e, db.getNodeBySlug.QueryRow(parentID, slug).Scan(&e.id, &e.parentID, &e.slug, &e.className, &e.tsCreated, &e.maxVersionNo, &e.maxWGZeroVersionNo)
+	return e, db.getNodeBySlug.QueryRow(parentID, slug).Scan(&e.id, &e.parentID, &e.slug, &e.classCode, &e.tsCreated, &e.maxVersionNo, &e.maxWGZeroVersionNo)
 }
 
 func (db *NodeDB) GetVersion(id int, versionNo int) (core.DBVersion, error) {
@@ -285,7 +285,7 @@ func (db *NodeDB) GetChildren(id int, order core.Order, limit, offset int) ([]co
 
 	for rows.Next() {
 		var child = &node{}
-		err := rows.Scan(&child.id, &child.parentID, &child.slug, &child.className, &child.tsCreated, &child.maxVersionNo, &child.maxWGZeroVersionNo)
+		err := rows.Scan(&child.id, &child.parentID, &child.slug, &child.classCode, &child.tsCreated, &child.maxVersionNo, &child.maxWGZeroVersionNo)
 		if err != nil {
 			return nil, err
 		}
@@ -320,7 +320,7 @@ func (db *NodeDB) GetReleasedChildren(id int, order core.Order, limit, offset in
 		var child = &nodeVersion{
 			//db: db,
 		}
-		err := rows.Scan(&child.id, &child.parentID, &child.slug, &child.className, &child.tsCreated, &child.maxVersionNo, &child.maxWGZeroVersionNo, &child.versionNo, &child.versionNote, &child.content, &child.tsChanged, &child.workflowGroupID)
+		err := rows.Scan(&child.id, &child.parentID, &child.slug, &child.classCode, &child.tsCreated, &child.maxVersionNo, &child.maxWGZeroVersionNo, &child.versionNo, &child.versionNote, &child.content, &child.tsChanged, &child.workflowGroupID)
 		if err != nil {
 			return nil, err
 		}
@@ -330,8 +330,8 @@ func (db *NodeDB) GetReleasedChildren(id int, order core.Order, limit, offset in
 	return children, nil
 }
 
-func (db *NodeDB) InsertNode(parentID int, slug string, className string) error {
-	_, err := db.insertNode.Exec(parentID, slug, className, time.Now().Unix(), 0, 0)
+func (db *NodeDB) InsertNode(parentID int, slug string, classCode string) error {
+	_, err := db.insertNode.Exec(parentID, slug, classCode, time.Now().Unix(), 0, 0)
 	return err
 }
 
@@ -339,10 +339,10 @@ func (db *NodeDB) IsNotFound(err error) bool {
 	return errors.Is(err, sql.ErrNoRows)
 }
 
-func (db *NodeDB) SetClass(e core.DBNode, className string) error {
-	_, err := db.setClass.Exec(className, e.ID())
+func (db *NodeDB) SetClass(e core.DBNode, classCode string) error {
+	_, err := db.setClass.Exec(classCode, e.ID())
 	if err == nil {
-		e.(*node).className = className
+		e.(*node).classCode = classCode
 	}
 	return err
 }

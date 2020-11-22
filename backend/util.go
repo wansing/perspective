@@ -2,8 +2,9 @@ package backend
 
 import (
 	"bytes"
+	"fmt"
 	"html/template"
-	"io"
+	"strings"
 	"time"
 
 	"github.com/wansing/perspective/core"
@@ -47,39 +48,51 @@ func Breadcrumbs(node *core.Node, linkLast bool) template.HTML {
 	return template.HTML(buf.String())
 }
 
-func optionClass(reg core.ClassRegistry, w io.StringWriter, code string, selectedCode string) {
-	if class, ok := reg.Get(code); ok {
-		w.WriteString(`<option `)
-		if class.Code == selectedCode {
-			w.WriteString(`selected `)
-		}
-		w.WriteString(`value="` + class.Code + `">` + class.Code + ": " + class.Name + `</option>`)
-	}
-}
-
 func FormatTs(ts int64) string {
-	// ignores the user timezone
+	// ignores the user's timezone
 	return time.Unix(ts, 0).Format("_2.1.2006 15:04:05")
 }
 
-// SelectChildClass writes one or two optgroup tags.
-func SelectChildClass(reg core.ClassRegistry, n *core.Node, selectedCode string) template.HTML {
+// SelectChildClass writes options or optgroups.
+func SelectChildClass(reg core.ClassRegistry, featuredChildClasses []string, selectedCode string) template.HTML {
 
-	w := &bytes.Buffer{}
+	var b = &strings.Builder{}
+	var optgroups = false
+	var selected = false
 
-	if n != nil && len(n.Class.FeaturedChildClasses) > 0 {
-		w.WriteString(`<optgroup label="Featured">`)
-		for _, code := range n.Class.FeaturedChildClasses {
-			optionClass(reg, w, code, selectedCode)
+	if len(featuredChildClasses) > 0 {
+		optgroups = true
+		b.WriteString(`<optgroup label="Featured">`)
+		for _, code := range featuredChildClasses {
+			if class, ok := reg.Get(code); ok {
+				b.WriteString(`<option `)
+				if class.Code == selectedCode {
+					b.WriteString(`selected `)
+					selected = true
+				}
+				fmt.Fprintf(b, `value="%s">%s: %s</option>`, class.Code, class.Code, class.Name)
+			}
 		}
-		w.WriteString(`</optgroup>`)
+		b.WriteString(`</optgroup>`)
 	}
 
-	w.WriteString(`<optgroup label="All">`)
+	if optgroups {
+		b.WriteString(`<optgroup label="All">`)
+	}
+
 	for _, code := range reg.All() {
-		optionClass(reg, w, code, selectedCode)
+		if class, ok := reg.Get(code); ok {
+			b.WriteString(`<option `)
+			if !selected && class.Code == selectedCode {
+				b.WriteString(`selected `)
+			}
+			fmt.Fprintf(b, `value="%s">%s: %s</option>`, class.Code, class.Code, class.Name)
+		}
 	}
-	w.WriteString(`</optgroup>`)
 
-	return template.HTML(w.String())
+	if optgroups {
+		b.WriteString(`</optgroup>`)
+	}
+
+	return template.HTML(b.String())
 }

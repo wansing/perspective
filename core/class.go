@@ -16,21 +16,33 @@ type ClassRegistry interface {
 	Get(code string) (*Class, bool)
 }
 
+// A class defines the behavior of a node.
 type Class struct {
-	Create               func() Instance // for initialization work only
+	Create               func() Instance
 	Name                 string
 	Code                 string
 	Info                 string
 	SelectOrder          Order // for backend select
-	FeaturedChildClasses []string
+	FeaturedChildClasses []string // for backend create
 }
 
 func (class *Class) InfoHTML() template.HTML {
 	return template.HTML(class.Info)
 }
 
-// An Instance of a Class is wrapped around an Node.
+// An instance of a class can store request-scoped data.
 type Instance interface {
-	AdditionalSlugs() []string // should be called after Do only
+	AdditionalSlugs() []string // is called after Do
 	Do(*Route) error
+}
+
+type NOP struct{}
+
+func (t *NOP) AdditionalSlugs() []string {
+	return nil
+}
+
+// Do won't reveal any content to the viewer.
+func (t *NOP) Do(r *Route) error {
+	return r.Recurse()
 }

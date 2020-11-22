@@ -25,12 +25,37 @@ var RawTemplateFuncs = template.FuncMap{
 	},
 }
 
-// Raw parses the content as templates. Variables can be set using {{define}}.
+// Raw parses the user-defined content into templates. Variables can be set using {{define}}.
+//
+// Raw does not pass the Route to these user-defined templates.
+// It wraps some functions instead, making them available in templates.
+// Templates might still try to call Do and ParseExecute, but these functions require a Route as an argument.
 type Raw struct {
-	core.Base
+	// template can't access anonymous fields is an interface, so putting core.Instance here won't work
+	*core.Queue
+	route *core.Route // not exported, unavailable in user-defined templates
+}
+
+func (t *Raw) Get(varName string) template.HTML {
+	return t.route.Get(varName)
+}
+
+func (t *Raw) Recurse() error {
+	return t.route.Recurse()
+}
+
+func (t *Raw) AdditionalSlugs() []string {
+	return nil
 }
 
 func (t *Raw) Do(r *core.Route) error {
+	return t.ParseAndExecute(r, t)
+}
+
+func (t *Raw) ParseAndExecute(r *core.Route, data interface{}) error {
+
+	t.Queue = r.Queue
+	t.route = r
 
 	// parse and execute the user content into templates
 
@@ -72,13 +97,11 @@ func (t *Raw) Do(r *core.Route) error {
 
 	for _, lt := range localTemplates {
 		buf := &bytes.Buffer{}
-		if err := lt.Execute(buf, r); err != nil { // recursion is done here
+		if err := lt.Execute(buf, data); err != nil { // recursion is done here
 			return fmt.Errorf("%s: %v", r.Node.Location(), err)
 		}
 		r.Set(lt.Name(), buf.String())
 	}
 
-	r.Recurse() // Recurse is idempotent here. This call is in case the user content forgot it. This might mess up the output, but is still better than not recursing at all.
-
-	return nil
+	return r.Recurse() // Recurse is idempotent here. This call is in case the user content forgot it. This might mess up the output, but is still better than not recursing at all.
 }

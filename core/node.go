@@ -13,7 +13,7 @@ type DBNode interface {
 	ID() int
 	ParentID() int
 	Slug() string
-	ClassName() string
+	ClassCode() string
 	TsCreated() int64
 	MaxVersionNo() int
 	MaxWGZeroVersionNo() int // The number of the latest version with workflow_group == 0, else zero. Redundant, but helpful.
@@ -36,7 +36,7 @@ type NodeDB interface {
 	GetVersion(id int, versionNo int) (DBVersion, error)
 	InsertNode(parentID int, slug string, class string) error
 	IsNotFound(err error) bool
-	SetClass(n DBNode, className string) error
+	SetClass(n DBNode, classCode string) error
 	SetParent(n DBNode, parent DBNode) error
 	SetSlug(n DBNode, slug string) error
 	SetWorkflowGroup(n DBNode, v DBVersionStub, groupID int) error // sets workflow group id of the current version
@@ -74,7 +74,6 @@ type NodeVersion struct {
 type Node struct {
 	DBNode
 	Instance
-	Class  *Class
 	Parent *Node // parent in node hierarchy or nil, required for permission checking
 
 	db *CoreDB // TODO omit
@@ -86,23 +85,24 @@ func (c *CoreDB) NewNode(parent *Node, dbNode DBNode) *Node {
 	var n = &Node{}
 	n.db = c
 	n.DBNode = dbNode
+	n.Instance = n.Class().Create()
 	n.Parent = parent
 
-	var ok bool
-	n.Class, ok = c.ClassRegistry.Get(dbNode.ClassName())
+	return n
+}
+
+func (n *Node) Class() *Class {
+	class, ok := n.db.ClassRegistry.Get(n.ClassCode())
 	if !ok {
-		n.Class = &Class{
+		class = &Class{
 			Create: func() Instance {
-				return &Base{} // Base won't reveal the content to the viewer
+				return &NOP{}
 			},
-			Name: "unknown",
-			Code: dbNode.ClassName(),
+			Name: "Unknown",
+			Code: n.ClassCode(),
 		}
 	}
-
-	n.Instance = n.Class.Create()
-
-	return n
+	return class
 }
 
 func (n *Node) GetVersion(versionNo int) (*Version, error) {
@@ -259,9 +259,9 @@ func (n *Node) Versions() ([]DBVersionStub, error) {
 
 // AddChild adds a child node to the receiver node.
 // It does not care for duplicated slugs, the database must prevent them.
-func (c *CoreDB) AddChild(n *Node, slug, className string) error {
-	if _, ok := c.ClassRegistry.Get(className); !ok {
-		return fmt.Errorf("class %s not found", className)
+func (c *CoreDB) AddChild(n *Node, slug, classCode string) error {
+	if _, ok := c.ClassRegistry.Get(classCode); !ok {
+		return fmt.Errorf("class %s not found", classCode)
 	}
-	return c.InsertNode(n.DBNode.ID(), slug, className)
+	return c.InsertNode(n.DBNode.ID(), slug, classCode)
 }
