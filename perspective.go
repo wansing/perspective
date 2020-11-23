@@ -77,7 +77,7 @@ func main() {
 	// Your reverse proxy must not strip the prefix. So if you're using nginx, the "proxy_pass" value should not end with a slash."
 	var base = flag.String("base", "", "strip off this `prefix` from every HTTP request and prepended it to every link")
 	// MySQL: collation should be utf8mb4_unicode_ci
-	flag.StringVar(&dbArg, "db", "sqlite3:perspective.sqlite3", "sql database url, see github.com/xo/dburl")
+	flag.StringVar(&dbArg, "db", "sqlite3:perspective.sqlite3?_busy_timeout=10000&_journal=WAL&_sync=NORMAL&cache=shared", "sql database url, see github.com/xo/dburl")
 	var hmacKey = flag.String("hmac", "", "use this secret HMAC `key` for serving resized images")
 	var listenAddr = flag.String("listen", "127.0.0.1:8080", "serve HTTP content at this `ip:port`")
 
@@ -85,7 +85,7 @@ func main() {
 
 	var initFlags = flag.NewFlagSet("init", flag.ExitOnError)
 
-	initFlags.StringVar(&dbArg, "db", "sqlite3:perspective.sqlite3", "sql database url, see github.com/xo/dburl") // copied from above
+	initFlags.StringVar(&dbArg, "db", "sqlite3:perspective.sqlite3?_busy_timeout=10000&_journal=WAL&_sync=NORMAL&cache=shared", "sql database url, see github.com/xo/dburl") // copied from above
 	var initInsert = initFlags.Bool("insert", false, "creates the given group or user")
 	var initJoin = initFlags.Bool("join", false, "joins the given user to the given group")
 	var initMakeAdmin = initFlags.Bool("make-admin", false, "gives admin permissions to the given group")
