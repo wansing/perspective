@@ -83,12 +83,24 @@ func init() {
 
 type Blog struct {
 	page      int // starting with 1
-	PageLinks []template.HTML
 	pages     int
 	perPage   int
 	ReadMore  string
 	Route     *core.Route
 	tmpl      *template.Template
+}
+
+func (t *Blog) PageLinks() []template.HTML {
+	return util.PageLinks(
+		t.page,
+		t.pages,
+		func(page int, name string) string {
+			return `<a href="` + t.Route.Node.Link() + `/page/` + strconv.Itoa(page) + `">` + name + `</a>`
+		},
+		func(page int, name string) string {
+			return `<span>` + strconv.Itoa(page) + `</span>`
+		},
+	)
 }
 
 // Node plus Request, so we can localize or internationalize things
@@ -221,17 +233,6 @@ func (t *Blog) Do(r *core.Route) error {
 	if t.ReadMore == "" {
 		t.ReadMore = "Read more"
 	}
-
-	t.PageLinks = util.PageLinks(
-		t.page,
-		t.pages,
-		func(page int, name string) string {
-			return `<a href="` + r.Node.Link() + `/page/` + strconv.Itoa(page) + `">` + name + `</a>`
-		},
-		func(page int, name string) string {
-			return `<span>` + strconv.Itoa(page) + `</span>`
-		},
-	)
 
 	buf := &bytes.Buffer{}
 	if err := t.tmpl.Execute(buf, t); err != nil {
