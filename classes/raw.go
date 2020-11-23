@@ -31,7 +31,6 @@ var RawTemplateFuncs = template.FuncMap{
 // It wraps some functions instead, making them available in templates.
 // Templates might still try to call Do and ParseExecute, but these functions require a Route as an argument.
 type Raw struct {
-	// template can't access anonymous fields is an interface, so putting core.Instance here won't work
 	*core.Queue
 	route *core.Route // not exported, unavailable in user-defined templates
 }
@@ -44,7 +43,7 @@ func (t *Raw) Recurse() error {
 	return t.route.Recurse()
 }
 
-func (t *Raw) AdditionalSlugs() []string {
+func (t *Raw) AddSlugs() []string {
 	return nil
 }
 

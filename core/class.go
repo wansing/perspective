@@ -32,13 +32,13 @@ func (class *Class) InfoHTML() template.HTML {
 
 // An instance of a class can store request-scoped data.
 type Instance interface {
-	AdditionalSlugs() []string // is called after Do
+	AddSlugs() []string // is called after Do
 	Do(*Route) error
 }
 
 type NOP struct{}
 
-func (t *NOP) AdditionalSlugs() []string {
+func (t *NOP) AddSlugs() []string {
 	return nil
 }
 

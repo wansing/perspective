@@ -61,7 +61,7 @@ func (t *Countdown) CountdownIDJS() template.JS {
 	return template.JS(t.CountdownID)
 }
 
-func (t *Countdown) AdditionalSlugs() []string {
+func (t *Countdown) AddSlugs() []string {
 	return nil
 }
 

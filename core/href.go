@@ -52,7 +52,7 @@ func (n *Node) Link() string {
 		if segment := nodes[i].Slug(); nodes[i].Parent != nil && segment != "default" { // neither root nor "default"
 			slugs = append(slugs, segment)
 		}
-		slugs = append(slugs, nodes[i].AdditionalSlugs()...)
+		slugs = append(slugs, nodes[i].AddSlugs()...)
 	}
 
 	return "/" + strings.Join(slugs, "/")

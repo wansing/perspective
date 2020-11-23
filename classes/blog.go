@@ -162,7 +162,7 @@ func (t *Blog) Children() ([]*blogChild, error) {
 	return result, nil
 }
 
-func (t *Blog) AdditionalSlugs() []string {
+func (t *Blog) AddSlugs() []string {
 	if t.page > 1 {
 		return []string{"page", strconv.Itoa(t.page)}
 	}

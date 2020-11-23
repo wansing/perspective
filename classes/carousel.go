@@ -23,7 +23,7 @@ type Carousel struct {
 	Files      []os.FileInfo
 }
 
-func (t *Carousel) AdditionalSlugs() []string {
+func (t *Carousel) AddSlugs() []string {
 	return nil
 }
 

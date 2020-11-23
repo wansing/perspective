@@ -46,7 +46,7 @@ type Handler struct {
 	http.Handler
 }
 
-func (t *Handler) AdditionalSlugs() []string {
+func (t *Handler) AddSlugs() []string {
 	return nil
 }
 

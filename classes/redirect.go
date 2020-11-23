@@ -19,7 +19,7 @@ func init() {
 
 type Redirect struct{}
 
-func (t *Redirect) AdditionalSlugs() []string {
+func (t *Redirect) AddSlugs() []string {
 	return nil
 }
 
