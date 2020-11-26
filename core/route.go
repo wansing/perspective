@@ -92,11 +92,12 @@ func (r *Route) Include(args ...string) (template.HTML, error) {
 		// command
 
 		includeRoute := &Route{
+			Node:    base,
 			Request: r.Request,
 			Queue:   NewQueue(command),
 		}
 
-		if err = includeRoute.pop(base); err != nil {
+		if err = includeRoute.Recurse(); err != nil {
 			return template.HTML(""), err
 		}
 
@@ -116,16 +117,8 @@ func (r *Route) Include(args ...string) (template.HTML, error) {
 	}
 }
 
-// Recurse takes the next slug from the queue, creates the corresponding node and executes its templates.
-//
-// It must be called explicitly in the user content because some things (global templates, push) should be done before and some things (like output) should be done after calling Recurse.
-//
-// Because Recurse can be called in a template, r.Node must be set.
+// Recurse takes the next slug from the queue, creates the corresponding node and executes it.
 func (r *Route) Recurse() error {
-	return r.pop(r.Node)
-}
-
-func (r *Route) pop(parent *Node) error {
 
 	// make this function idempotent
 
@@ -133,10 +126,10 @@ func (r *Route) pop(parent *Node) error {
 		r.Recursed = make(map[int]interface{})
 	}
 
-	if _, ok := r.Recursed[parent.ID()]; ok {
+	if _, ok := r.Recursed[r.Node.ID()]; ok {
 		return nil // already done
 	}
-	r.Recursed[parent.ID()] = struct{}{}
+	r.Recursed[r.Node.ID()] = struct{}{}
 
 	// When the template engine recovers from a panic, it displays an 404 error and logs the panic message.
 	// This displays the panic message and logs a stack trace.
@@ -160,24 +153,24 @@ func (r *Route) pop(parent *Node) error {
 
 	if r.Queue.Len() == 0 {
 		// try default
-		n, err = r.Request.db.GetNodeBySlug(parent, "default")
+		n, err = r.Request.db.GetNodeBySlug(r.Node, "default")
 		if err != nil {
 			return nil // no problem, it was just a try
 		}
 	} else {
 		var slug, _ = r.Queue.Pop()
-		n, err = r.Request.db.GetNodeBySlug(parent, slug)
+		n, err = r.Request.db.GetNodeBySlug(r.Node, slug)
 		if err != nil {
 			// restore queue and resort to default
 			r.Queue.push(slug)
-			n, err = r.Request.db.GetNodeBySlug(parent, "default")
+			n, err = r.Request.db.GetNodeBySlug(r.Node, "default")
 			if err != nil {
-				return fmt.Errorf("pop (%d, %s): %w", parent.ID(), slug, err) // neither slug nor default were found
+				return fmt.Errorf("pop (%d, %s): %w", r.Node.ID(), slug, err) // neither slug nor default were found
 			}
 		}
 	}
 
-	n.Parent = parent
+	n.Parent = r.Node
 
 	// check permission
 
