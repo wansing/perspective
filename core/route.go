@@ -39,21 +39,41 @@ func RouteFromContext(ctx context.Context) *Route {
 	return ctx.Value(routeContextKey{}).(*Route)
 }
 
-// Example: {{ .Include "/stuff" "footer" "body" }}
+// Include executes a command, starting in a base node (default "."), and returns a variable (default "body").
 //
-// baseLocation can be "."
-func (r *Route) Include(baseLocation, command, varName string) (template.HTML, error) {
+//  Include(command)
+//  Include(base, command)
+//  Include(base, command, varName)
+//
+// Example:
+//
+//  {{.Include "/legal" "disclaimer" "body"}}
+func (r *Route) Include(args ...string) (template.HTML, error) {
+
+	var baseLocation, command, varName string
+	switch len(args) {
+	case 1:
+		baseLocation = "."
+		command = args[0]
+		varName = "body"
+	case 2:
+		baseLocation = args[0]
+		command = args[1]
+		varName = "body"
+	case 3:
+		baseLocation = args[0]
+		command = args[1]
+		varName = args[2]
+	default:
+		return template.HTML(""), errors.New("Include: wrong number of arguments")
+	}
+
 	if !path.IsAbs(baseLocation) {
 		baseLocation = path.Join(r.Node.Location(), baseLocation)
 	}
-	var v, err = r.include(baseLocation, command, varName)
-	return template.HTML(v), err
-}
-
-func (r *Route) include(baseLocation, command, varName string) (string, error) {
 
 	if r.includes == nil { // in dummy requests
-		return "", nil
+		return template.HTML(""), nil
 	}
 
 	if _, ok := r.includes[baseLocation][command]; !ok {
@@ -62,10 +82,10 @@ func (r *Route) include(baseLocation, command, varName string) (string, error) {
 
 		base, err := r.Open(baseLocation) // returns the leaf
 		if err != nil {
-			return "", err
+			return template.HTML(""), err
 		}
 		if base == nil {
-			return "", ErrNotFound
+			return template.HTML(""), ErrNotFound
 		}
 		// base could be cached, but cache invalidation might be difficult
 
@@ -77,7 +97,7 @@ func (r *Route) include(baseLocation, command, varName string) (string, error) {
 		}
 
 		if err = includeRoute.pop(base); err != nil {
-			return "", err
+			return template.HTML(""), err
 		}
 
 		// cache vars
@@ -90,25 +110,10 @@ func (r *Route) include(baseLocation, command, varName string) (string, error) {
 	}
 
 	if v, ok := r.includes[baseLocation][command][varName]; ok {
-		return v, nil
+		return template.HTML(v), nil
 	} else {
-		return "", fmt.Errorf("including %s: var %s %w", command, varName, ErrNotFound)
+		return template.HTML(""), fmt.Errorf("include %s: var %s %w", command, varName, ErrNotFound)
 	}
-}
-
-// IncludeBody calls Include(base, command, "body").
-func (r *Route) IncludeBody(base, command string) (template.HTML, error) {
-	return r.Include(base, command, "body")
-}
-
-// IncludeChild calls Include(".", command, varName).
-func (r *Route) IncludeChild(command, varName string) (template.HTML, error) {
-	return r.Include(".", command, varName)
-}
-
-// IncludeChildBody calls Include(".", command, "body").
-func (r *Route) IncludeChildBody(command string) (template.HTML, error) {
-	return r.Include(".", command, "body")
 }
 
 // Recurse takes the next slug from the queue, creates the corresponding node and executes its templates.
