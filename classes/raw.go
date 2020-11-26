@@ -31,16 +31,8 @@ var RawTemplateFuncs = template.FuncMap{
 // It wraps some functions instead, making them available in templates.
 // Templates might still try to call Do and ParseExecute, but these functions require a Route as an argument.
 type Raw struct {
-	*core.Queue
-	route *core.Route // not exported, unavailable in user-defined templates
-}
-
-func (t *Raw) Get(varName string) template.HTML {
-	return t.route.Get(varName)
-}
-
-func (t *Raw) Recurse() error {
-	return t.route.Recurse()
+	*core.Queue             // exposed to the user content
+	route       *core.Route // not exported, unavailable in user-defined templates
 }
 
 func (t *Raw) AddSlugs() []string {
@@ -103,4 +95,34 @@ func (t *Raw) ParseAndExecute(r *core.Route, data interface{}) error {
 	}
 
 	return r.Recurse() // Recurse is idempotent here. This call is in case the user content forgot it. This might mess up the output, but is still better than not recursing at all.
+}
+
+// wrappers for Route functions
+
+func (t *Raw) Get(varName string) template.HTML {
+	return t.route.Get(varName)
+}
+
+func (t *Raw) Include(args ...string) (template.HTML, error) {
+	return t.route.Include(args...)
+}
+
+func (t *Raw) Recurse() error {
+	return t.route.Recurse()
+}
+
+func (t *Raw) Set(name, value string) {
+	t.route.Set(name, value)
+}
+
+func (t *Raw) GetGlobal(varName string) template.HTML {
+	return t.route.GetGlobal(varName)
+}
+
+func (t *Raw) HasGlobal(varName string) bool {
+	return t.route.HasGlobal(varName)
+}
+
+func (t *Raw) SetGlobal(varName string, value string) interface{} {
+	return t.route.SetGlobal(varName, value)
 }
