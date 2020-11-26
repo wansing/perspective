@@ -25,13 +25,12 @@ var ErrNotFound = errors.New("not found")
 type Route struct {
 	*Queue
 	*Request
-	*Node                        // current node
-	*Version                     // version of current node
-	Next     []NodeVersion       // executed nodes
-	Recursed map[int]interface{} // avoids double recursion
-	RootURL  string              // "/" for main route, "/" or include base for included routes, TODO use it
-	Vars     map[string]string   // node output
-	VarDepth map[string]int      // must be stored for each var separately
+	*Node                      // current node
+	*Version                   // version of current node
+	Next     []NodeVersion     // executed nodes
+	RootURL  string            // "/" for main route, "/" or include base for included routes, TODO use it
+	Vars     map[string]string // node output
+	VarDepth map[string]int    // must be stored for each var separately
 }
 
 // RouteFromContext gets a Route from the given context. It can panic.
@@ -122,14 +121,14 @@ func (r *Route) Recurse() error {
 
 	// make this function idempotent
 
-	if r.Recursed == nil {
-		r.Recursed = make(map[int]interface{})
+	if r.recursed == nil {
+		r.recursed = make(map[int]interface{})
 	}
 
-	if _, ok := r.Recursed[r.Node.ID()]; ok {
+	if _, ok := r.recursed[r.Node.ID()]; ok {
 		return nil // already done
 	}
-	r.Recursed[r.Node.ID()] = struct{}{}
+	r.recursed[r.Node.ID()] = struct{}{}
 
 	// When the template engine recovers from a panic, it displays an 404 error and logs the panic message.
 	// This displays the panic message and logs a stack trace.

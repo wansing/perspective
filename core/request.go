@@ -48,11 +48,12 @@ type Request struct {
 	request *http.Request
 
 	// content
-	globals   map[string]string                       // must be writable by includes, so they can require js/css libraries
+	vars      map[string]string                       // global variables
 	includes  map[string]map[string]map[string]string // base location => command => resultName => value
 	Templates map[string]*template.Template           // global templates
 
 	// robustness
+	recursed      map[int]interface{} // avoid double recursion and infinite loops
 	statusWritten bool
 	watchdog      int
 
@@ -69,7 +70,7 @@ func (c *CoreDB) NewRequest(w http.ResponseWriter, httpreq *http.Request) *Reque
 		User:      Guest{},
 		writer:    w,
 		request:   httpreq,
-		globals:   make(map[string]string),
+		vars:      make(map[string]string),
 		includes:  make(map[string]map[string]map[string]string),
 		Templates: make(map[string]*template.Template),
 	}
@@ -94,7 +95,7 @@ func newDummyRequest() *Request {
 		User:      Guest{},
 		writer:    nil,
 		request:   nil,
-		globals:   make(map[string]string),
+		vars:      make(map[string]string),
 		includes:  nil, // include checks that
 		Templates: make(map[string]*template.Template),
 	}
@@ -183,18 +184,18 @@ func (req *Request) Open(path string) (*Node, error) {
 
 // GetGlobal returns the value of a global variable.
 func (req *Request) GetGlobal(varName string) template.HTML {
-	return template.HTML(req.globals[varName])
+	return template.HTML(req.vars[varName])
 }
 
 // HasGlobal returns whether a global variable with the given name exists.
 func (req *Request) HasGlobal(varName string) bool {
-	_, ok := req.globals[varName]
+	_, ok := req.vars[varName]
 	return ok
 }
 
 // SetGlobal sets a global variable to a given value.
 func (req *Request) SetGlobal(varName string, value string) interface{} {
-	req.globals[varName] = value
+	req.vars[varName] = value
 	return nil
 }
 

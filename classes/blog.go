@@ -82,12 +82,12 @@ func init() {
 }
 
 type Blog struct {
-	page      int // starting with 1
-	pages     int
-	perPage   int
-	ReadMore  string
-	Route     *core.Route
-	tmpl      *template.Template
+	page     int // starting with 1
+	pages    int
+	perPage  int
+	ReadMore string
+	Route    *core.Route
+	tmpl     *template.Template
 }
 
 func (t *Blog) PageLinks() []template.HTML {

@@ -22,7 +22,7 @@ type Class struct {
 	Name                 string
 	Code                 string
 	Info                 string
-	SelectOrder          Order // for backend select
+	SelectOrder          Order    // for backend select
 	FeaturedChildClasses []string // for backend create
 }
 
