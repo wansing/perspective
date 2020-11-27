@@ -15,27 +15,25 @@ const RootID = 1        // id of the root node
 const RootSlug = "root" // slug of the root node
 
 // see https://golang.org/pkg/context/#WithValue
-type routeContextKey struct{}
+type queryContextKey struct{}
 
 var ErrNotFound = errors.New("not found")
 
-// A Route executes one queue, which can be the main queue or an included queue.
-//
-// For usage in templates, funcs on Route must return "one return value (of any type) or two return values, the second of which is an error."
-type Route struct {
+// A Query is the execution of one queue, which can be the main queue or an included queue.
+type Query struct {
 	*Queue
 	*Request
 	*Node                      // current node
 	*Version                   // version of current node
 	Next     []NodeVersion     // executed nodes
-	RootURL  string            // "/" for main route, "/" or include base for included routes, TODO use it
+	RootURL  string            // "/" for main query, "/" or include base for included queries, TODO unused at the moment
 	Vars     map[string]string // node output
 	VarDepth map[string]int    // must be stored for each var separately
 }
 
-// RouteFromContext gets a Route from the given context. It can panic.
-func RouteFromContext(ctx context.Context) *Route {
-	return ctx.Value(routeContextKey{}).(*Route)
+// QueryFromContext gets a Query from the given context. It can panic.
+func QueryFromContext(ctx context.Context) *Query {
+	return ctx.Value(queryContextKey{}).(*Query)
 }
 
 // Include executes a command, starting in a base node (default "."), and returns a variable (default "body").
@@ -47,7 +45,7 @@ func RouteFromContext(ctx context.Context) *Route {
 // Example:
 //
 //  {{.Include "/legal" "disclaimer" "body"}}
-func (r *Route) Include(args ...string) (template.HTML, error) {
+func (r *Query) Include(args ...string) (template.HTML, error) {
 
 	var baseLocation, command, varName string
 	switch len(args) {
@@ -90,13 +88,13 @@ func (r *Route) Include(args ...string) (template.HTML, error) {
 
 		// command
 
-		includeRoute := &Route{
+		includeQuery := &Query{
 			Node:    base,
 			Request: r.Request,
 			Queue:   NewQueue(command),
 		}
 
-		if err = includeRoute.Recurse(); err != nil {
+		if err = includeQuery.Recurse(); err != nil {
 			return template.HTML(""), err
 		}
 
@@ -106,7 +104,7 @@ func (r *Route) Include(args ...string) (template.HTML, error) {
 			r.includes[baseLocation] = make(map[string]map[string]string)
 		}
 
-		r.includes[baseLocation][command] = includeRoute.Vars
+		r.includes[baseLocation][command] = includeQuery.Vars
 	}
 
 	if v, ok := r.includes[baseLocation][command][varName]; ok {
@@ -117,7 +115,7 @@ func (r *Route) Include(args ...string) (template.HTML, error) {
 }
 
 // Recurse takes the next slug from the queue, creates the corresponding node and executes it.
-func (r *Route) Recurse() error {
+func (r *Query) Recurse() error {
 
 	// make this function idempotent
 
@@ -208,7 +206,7 @@ func (r *Route) Recurse() error {
 // Get returns the value of a variable and clears it.
 //
 // If IsHTML is false (i.e. the content type is not HTML), it returns an empty string as the return value will be thrown away anyway.
-func (r *Route) Get(varName string) template.HTML {
+func (r *Query) Get(varName string) template.HTML {
 
 	var val, _ = r.Vars[varName]
 	delete(r.Vars, varName)
@@ -221,7 +219,7 @@ func (r *Route) Get(varName string) template.HTML {
 }
 
 // Set sets a variable if it is empty or if the current node is deeper than the origin of the existing value.
-func (r *Route) Set(name, value string) {
+func (r *Query) Set(name, value string) {
 
 	if !r.IsHTML() && r.Vars[name] != "" {
 		// don't overwrite content, which is probably JSON data or so

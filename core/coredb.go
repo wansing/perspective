@@ -306,14 +306,14 @@ func (c *CoreDB) SetWorkflowGroup(n *Node, v *Version, newWorkflowGroup int) err
 		var tmpRequest = newDummyRequest()
 		tmpRequest.db = c // required for getNodeBySlug
 
-		var tmpRoute = &Route{
+		var tmpQuery = &Query{
 			Request: tmpRequest,
 			Queue:   NewQueue(""),
 			Node:    n,
 			Version: v,
 		}
 
-		if err := n.Do(tmpRoute); err != nil {
+		if err := n.Do(tmpQuery); err != nil {
 			return err
 		}
 

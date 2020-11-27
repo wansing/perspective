@@ -27,7 +27,7 @@ func (t *Carousel) AddSlugs() []string {
 	return nil
 }
 
-func (t *Carousel) Do(r *core.Route) error {
+func (t *Carousel) Do(r *core.Query) error {
 
 	t.CarouselID = "carousel-" + strconv.Itoa(r.Node.ID())
 

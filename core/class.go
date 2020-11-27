@@ -33,7 +33,7 @@ func (class *Class) InfoHTML() template.HTML {
 // An instance of a class can store request-scoped data.
 type Instance interface {
 	AddSlugs() []string // is called after Do
-	Do(*Route) error
+	Do(*Query) error
 }
 
 type NOP struct{}
@@ -43,6 +43,6 @@ func (t *NOP) AddSlugs() []string {
 }
 
 // Do won't reveal any content to the viewer.
-func (t *NOP) Do(r *Route) error {
+func (t *NOP) Do(r *Query) error {
 	return r.Recurse()
 }

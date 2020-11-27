@@ -70,7 +70,6 @@ type NodeVersion struct {
 	*Version
 }
 
-// Node is independent from Route.
 type Node struct {
 	DBNode
 	Instance

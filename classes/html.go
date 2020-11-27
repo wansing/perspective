@@ -39,7 +39,7 @@ type HTML struct {
 // The order is crucial.
 // If templates were processed first, then embedded content would be rewritten as well.
 // Now instead, HTML rewriting must take care not to modify template instructions.
-func (t *HTML) Do(r *core.Route) error {
+func (t *HTML) Do(r *core.Query) error {
 
 	rewritten, err := rewriteHTML(r.Request.Path, r.Node, strings.NewReader(r.Content()))
 	if err != nil {

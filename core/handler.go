@@ -51,7 +51,7 @@ func (t *Handler) AddSlugs() []string {
 }
 
 // Empties the queue, creates an http.Request struct and an http.ResponseWriter, calls Handler.Handler.ServeHTTP and writes the result to the "body" variable.
-func (t *Handler) Do(r *Route) error {
+func (t *Handler) Do(r *Query) error {
 
 	var path = r.Queue.String()
 	r.Queue = &Queue{} // clear queue
@@ -61,7 +61,7 @@ func (t *Handler) Do(r *Route) error {
 	var req = r.request.Clone(
 		context.WithValue(
 			r.request.Context(),
-			routeContextKey{},
+			queryContextKey{},
 			r,
 		),
 	)

@@ -27,26 +27,26 @@ var RawTemplateFuncs = template.FuncMap{
 
 // Raw parses the user-defined content into templates. Variables can be set using {{define}}.
 //
-// Raw does not pass the Route to these user-defined templates.
+// Raw does not pass the Query to these user-defined templates.
 // It wraps some functions instead, making them available in templates.
-// Templates might still try to call Do and ParseExecute, but these functions require a Route as an argument.
+// Templates might still try to call Do and ParseExecute, but these functions require a Query as an argument.
 type Raw struct {
 	*core.Queue             // exposed to the user content
-	route       *core.Route // not exported, unavailable in user-defined templates
+	query       *core.Query // not exported, unavailable in user-defined templates
 }
 
 func (t *Raw) AddSlugs() []string {
 	return nil
 }
 
-func (t *Raw) Do(r *core.Route) error {
+func (t *Raw) Do(r *core.Query) error {
 	return t.ParseAndExecute(r, t)
 }
 
-func (t *Raw) ParseAndExecute(r *core.Route, data interface{}) error {
+func (t *Raw) ParseAndExecute(r *core.Query, data interface{}) error {
 
 	t.Queue = r.Queue
-	t.route = r
+	t.query = r
 
 	// parse and execute the user content into templates
 
@@ -97,32 +97,40 @@ func (t *Raw) ParseAndExecute(r *core.Route, data interface{}) error {
 	return r.Recurse() // Recurse is idempotent here. This call is in case the user content forgot it. This might mess up the output, but is still better than not recursing at all.
 }
 
-// wrappers for Route functions
+// wrappers for Query functions
 
 func (t *Raw) Get(varName string) template.HTML {
-	return t.route.Get(varName)
+	return t.query.Get(varName)
 }
 
 func (t *Raw) Include(args ...string) (template.HTML, error) {
-	return t.route.Include(args...)
+	return t.query.Include(args...)
 }
 
 func (t *Raw) Recurse() error {
-	return t.route.Recurse()
+	return t.query.Recurse()
 }
 
 func (t *Raw) Set(name, value string) {
-	t.route.Set(name, value)
+	t.query.Set(name, value)
 }
 
 func (t *Raw) GetGlobal(varName string) template.HTML {
-	return t.route.GetGlobal(varName)
+	return t.query.GetGlobal(varName)
 }
 
 func (t *Raw) HasGlobal(varName string) bool {
-	return t.route.HasGlobal(varName)
+	return t.query.HasGlobal(varName)
 }
 
 func (t *Raw) SetGlobal(varName string, value string) interface{} {
-	return t.route.SetGlobal(varName, value)
+	return t.query.SetGlobal(varName, value)
+}
+
+func (t *Raw) Tag(tags ...string) interface{} {
+	return t.query.Version.Tag(tags...)
+}
+
+func (t *Raw) Ts(dates ...string) interface{} {
+	return t.query.Version.Ts(dates...)
 }

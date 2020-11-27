@@ -194,6 +194,8 @@ func (req *Request) HasGlobal(varName string) bool {
 }
 
 // SetGlobal sets a global variable to a given value.
+//
+// For usage in templates, funcs must return "one return value (of any type) or two return values, the second of which is an error."
 func (req *Request) SetGlobal(varName string, value string) interface{} {
 	req.vars[varName] = value
 	return nil

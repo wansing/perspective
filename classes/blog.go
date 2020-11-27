@@ -41,9 +41,9 @@ func init() {
 
 		{{if .Next}}
 			{{template "metadata" .Next}}
-			{{.Route.Get "body"}}
+			{{.Query.Get "body"}}
 			<div class="blog-blogentry-back">
-				<a onclick="javascript:window.history.back(); return false;" href="{{.Route.Node.Link}}">Zurück</a>
+				<a onclick="javascript:window.history.back(); return false;" href="{{.Query.Node.Link}}">Zurück</a>
 			</div>
 		{{else}}
 			{{range .Children}}
@@ -53,7 +53,7 @@ func init() {
 						{{.Body}}
 						{{if .Cut}}
 							<p class="blog-blogentry-more">
-								<a href="{{.Route.Node.Link}}">{{$.ReadMore}}</a>
+								<a href="{{.Query.Node.Link}}">{{$.ReadMore}}</a>
 							</p>
 						{{end}}
 					</div>
@@ -86,7 +86,7 @@ type Blog struct {
 	pages    int
 	perPage  int
 	ReadMore string
-	Route    *core.Route
+	Query    *core.Query
 	tmpl     *template.Template
 }
 
@@ -95,7 +95,7 @@ func (t *Blog) PageLinks() []template.HTML {
 		t.page,
 		t.pages,
 		func(page int, name string) string {
-			return `<a href="` + t.Route.Node.Link() + `/page/` + strconv.Itoa(page) + `">` + name + `</a>`
+			return `<a href="` + t.Query.Node.Link() + `/page/` + strconv.Itoa(page) + `">` + name + `</a>`
 		},
 		func(page int, name string) string {
 			return `<span>` + strconv.Itoa(page) + `</span>`
@@ -110,10 +110,10 @@ type blogNode struct {
 }
 
 func (t *Blog) Next() *blogNode {
-	if len(t.Route.Next) > 0 {
+	if len(t.Query.Next) > 0 {
 		return &blogNode{
-			NodeVersion: t.Route.Next[0],
-			Request:     t.Route.Request,
+			NodeVersion: t.Query.Next[0],
+			Request:     t.Query.Request,
 		}
 	}
 	return nil
@@ -127,7 +127,7 @@ type blogChild struct {
 
 func (t *Blog) Children() ([]*blogChild, error) {
 
-	children, err := t.Route.Node.GetReleasedChildren(t.Route.User, core.ChronologicallyDesc, t.perPage, (t.page-1)*t.perPage)
+	children, err := t.Query.Node.GetReleasedChildren(t.Query.User, core.ChronologicallyDesc, t.perPage, (t.page-1)*t.perPage)
 	if err != nil {
 		return nil, err
 	}
@@ -138,18 +138,18 @@ func (t *Blog) Children() ([]*blogChild, error) {
 
 		// render body
 
-		childRoute := &core.Route{
+		childQuery := &core.Query{
 			Node:    child.Node,
 			Version: child.Version,
-			Request: t.Route.Request,
+			Request: t.Query.Request,
 			Queue:   core.NewQueue(""),
 		}
 
-		if err := child.Do(childRoute); err != nil {
+		if err := child.Do(childQuery); err != nil {
 			return nil, err
 		}
 
-		body, cut := util.CutMore(string(childRoute.Get("body")))
+		body, cut := util.CutMore(string(childQuery.Get("body")))
 
 		bodyBytes, err := ioutil.ReadAll(
 			util.AnchorHeading(
@@ -164,7 +164,7 @@ func (t *Blog) Children() ([]*blogChild, error) {
 		result = append(result, &blogChild{
 			blogNode: blogNode{
 				NodeVersion: child,
-				Request:     t.Route.Request,
+				Request:     t.Query.Request,
 			},
 			Body: template.HTML(bodyBytes),
 			Cut:  cut,
@@ -181,9 +181,9 @@ func (t *Blog) AddSlugs() []string {
 	return nil
 }
 
-func (t *Blog) Do(r *core.Route) error {
+func (t *Blog) Do(r *core.Query) error {
 
-	t.Route = r
+	t.Query = r
 
 	// take segment page/123 from queue before calling Recurse
 

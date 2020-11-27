@@ -74,7 +74,7 @@ type Markdown struct {
 	HTML
 }
 
-func (t *Markdown) Do(r *core.Route) error {
+func (t *Markdown) Do(r *core.Query) error {
 
 	rendered := renderMarkdown(strings.NewReader(r.Content()))
 	r.SetContent(rendered)

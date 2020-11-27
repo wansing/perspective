@@ -17,8 +17,8 @@ perspective is a content management system for websites, written in Go.
 * node: a content item, part of the content tree
 * slug: name of a node, unique across its siblings
 * queue: a stack of slugs
-* route: processes a queue
-* request: contains a main route (whose queue is the URL) plus zero or more included routes
+* query: execution of a queue
+* request: contains a main query (whose queue is the URL) plus zero or more included queries
 
 ## License
 

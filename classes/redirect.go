@@ -23,7 +23,7 @@ func (t *Redirect) AddSlugs() []string {
 	return nil
 }
 
-func (t *Redirect) Do(r *core.Route) error {
+func (t *Redirect) Do(r *core.Query) error {
 
 	u, err := url.Parse(r.Version.Content())
 	if err != nil {

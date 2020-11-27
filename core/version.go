@@ -50,12 +50,16 @@ func (v *Version) SetContent(content string) {
 }
 
 // Tags adds one or more tags to the current version.
+//
+// For usage in templates, funcs must return "one return value (of any type) or two return values, the second of which is an error."
 func (v *Version) Tag(tags ...string) interface{} {
 	v.Tags = append(v.Tags, tags...)
 	return nil
 }
 
 // Ts adds one or more timestamps to the current version. Arguments are parsed with util.ParseTime.
+//
+// For usage in templates, funcs must return "one return value (of any type) or two return values, the second of which is an error."
 func (v *Version) Ts(dates ...string) interface{} {
 	for _, dateStr := range dates {
 		if ts, err := util.ParseTime(dateStr); err == nil {

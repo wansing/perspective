@@ -273,7 +273,7 @@ func listen(db *core.CoreDB, addr string, base string) {
 	//
 	// golang mux recovers from panics, so the program won't crash
 
-	// <body> is like mainRoute.Include("/", "path/foo/bar", "body")
+	// <body> is like mainQuery.Include("/", "path/foo/bar", "body")
 	rootTemplate := template.Must(template.New("").Parse(`
 {{ define "base" -}}
 <!DOCTYPE html>
@@ -321,24 +321,24 @@ func listen(db *core.CoreDB, addr string, base string) {
 
 				var request = db.NewRequest(w, req)
 
-				var mainRoute = &core.Route{
+				var mainQuery = &core.Query{
 					Request: request,
 					Queue:   core.NewQueue("/" + core.RootSlug + req.URL.Path),
 				}
-				defer mainRoute.Cleanup()
+				defer mainQuery.Cleanup()
 
-				if err := mainRoute.Recurse(); err != nil {
+				if err := mainQuery.Recurse(); err != nil {
 					http.NotFound(w, req)
 				}
 
 				// rootTemplate could be the content of a virtual node. But that would be much effort, so we just do this:
 
-				if !mainRoute.IsHTML() {
-					w.Write([]byte(mainRoute.Get("body")))
+				if !mainQuery.IsHTML() {
+					w.Write([]byte(mainQuery.Get("body")))
 					return
 				}
 
-				if err := rootTemplate.ExecuteTemplate(w, "base", mainRoute); err != nil {
+				if err := rootTemplate.ExecuteTemplate(w, "base", mainQuery); err != nil {
 					http.NotFound(w, req)
 					return
 				}

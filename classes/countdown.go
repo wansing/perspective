@@ -66,7 +66,7 @@ func (t *Countdown) AddSlugs() []string {
 }
 
 // shadows Raw.Do
-func (t *Countdown) Do(r *core.Route) error {
+func (t *Countdown) Do(r *core.Query) error {
 
 	var countdownID = make([]byte, 6)
 	if _, err := rand.Read(countdownID); err != nil {
