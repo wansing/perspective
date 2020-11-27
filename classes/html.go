@@ -18,40 +18,55 @@ import (
 	"golang.org/x/net/html/atom"
 )
 
+var htmlDelimiters = regexp.MustCompile("{{.+?}}") // +? prefer fewer
+
 func init() {
-	Register(&core.Class{
-		Create: func() core.Instance {
-			return &HTML{}
-		},
-		Name: "HTML document",
-		Code: "html",
+	Register(func() core.Class {
+		return HTML{}
 	})
 }
-
-var delimiters = regexp.MustCompile("{{.+?}}") // +? prefer fewer
 
 type HTML struct {
 	Raw
 }
 
-// Do rewrites some HTML code and then calls Raw.Do().
-//
-// The order is crucial.
-// If templates were processed first, then embedded content would be rewritten as well.
-// Now instead, HTML rewriting must take care not to modify template instructions.
-func (t *HTML) Do(r *core.Query) error {
+func (HTML) Code() string {
+	return "html"
+}
 
-	rewritten, err := rewriteHTML(r.Request.Path, r.Node, strings.NewReader(r.Content()))
+func (HTML) Name() string {
+	return "HTML document"
+}
+
+func (HTML) Info() string {
+	return ""
+}
+
+func (HTML) FeaturedChildClasses() []string {
+	return nil
+}
+
+func (HTML) SelectOrder() core.Order {
+	return core.AlphabeticallyAsc
+}
+
+// HTML rewrites some HTML code and runs Raw.
+//
+// This order is crucial. If templates were processed first, then embedded content would be rewritten as well.
+// Now instead, HTML rewriting must take care not to modify template instructions.
+func (h HTML) Run(r *core.Query) error {
+
+	rewritten, err := h.rewriteHTML(r.Request.Path, r.Node, strings.NewReader(r.Content()))
 	if err != nil {
 		return err
 	}
 
 	r.SetContent(rewritten)
 
-	return t.Raw.Do(r)
+	return h.Raw.Run(r)
 }
 
-func rewriteHTML(reqPath string, node *core.Node, input io.Reader) (string, error) {
+func (HTML) rewriteHTML(reqPath string, node *core.Node, input io.Reader) (string, error) {
 
 	domtree, err := util.CreateDomTree(input)
 	if err != nil {
@@ -247,7 +262,7 @@ func rewriteHTML(reqPath string, node *core.Node, input io.Reader) (string, erro
 	// restore quotation marks etc within template instructions {{ }}
 	// regex is not multi-line because text/template writes: "Except for raw strings, actions may not span newlines, although comments can."
 
-	var result = delimiters.ReplaceAllStringFunc(
+	var result = htmlDelimiters.ReplaceAllStringFunc(
 		util.RenderDomTreeToString(domtree),
 		pkghtml.UnescapeString,
 	)

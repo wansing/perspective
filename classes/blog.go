@@ -18,7 +18,7 @@ import (
 
 func init() {
 
-	tmpl := template.Must(template.New("").Parse(`
+	var tmpl = template.Must(template.New("").Parse(`
 
 		{{define "metadata"}}
 			<div class="blog-blogentry-date">
@@ -66,41 +66,43 @@ func init() {
 			</div>
 		{{end}}`))
 
-	Register(&core.Class{
-		Create: func() core.Instance {
-			return &Blog{
-				page: 1,
-				tmpl: tmpl,
-			}
-		},
-		Name:                 "Blog",
-		Code:                 "blog",
-		Info:                 ``,
-		SelectOrder:          core.ChronologicallyDesc,
-		FeaturedChildClasses: []string{"markdown"},
+	Register(func() core.Class {
+		return &Blog{
+			tmpl: tmpl,
+		}
 	})
 }
 
 type Blog struct {
+	tmpl *template.Template
+}
+
+func (*Blog) Code() string {
+	return "blog"
+}
+
+func (*Blog) Name() string {
+	return "Blog"
+}
+
+func (*Blog) Info() string {
+	return ""
+}
+
+func (*Blog) FeaturedChildClasses() []string {
+	return []string{"markdown"}
+}
+
+func (*Blog) SelectOrder() core.Order {
+	return core.ChronologicallyDesc
+}
+
+type blogData struct {
 	page     int // starting with 1
 	pages    int
 	perPage  int
 	ReadMore string
 	Query    *core.Query
-	tmpl     *template.Template
-}
-
-func (t *Blog) PageLinks() []template.HTML {
-	return util.PageLinks(
-		t.page,
-		t.pages,
-		func(page int, name string) string {
-			return `<a href="` + t.Query.Node.Link() + `/page/` + strconv.Itoa(page) + `">` + name + `</a>`
-		},
-		func(page int, name string) string {
-			return `<span>` + strconv.Itoa(page) + `</span>`
-		},
-	)
 }
 
 // Node plus Request, so we can localize or internationalize things
@@ -109,25 +111,38 @@ type blogNode struct {
 	*core.Request
 }
 
-func (t *Blog) Next() *blogNode {
-	if len(t.Query.Next) > 0 {
-		return &blogNode{
-			NodeVersion: t.Query.Next[0],
-			Request:     t.Query.Request,
-		}
-	}
-	return nil
-}
-
 type blogChild struct {
 	blogNode
 	Body template.HTML
 	Cut  bool
 }
 
-func (t *Blog) Children() ([]*blogChild, error) {
+func (data *blogData) PageLinks() []template.HTML {
+	return util.PageLinks(
+		data.page,
+		data.pages,
+		func(page int, name string) string {
+			return `<a href="` + data.Query.Node.Link() + `/page/` + strconv.Itoa(page) + `">` + name + `</a>`
+		},
+		func(page int, name string) string {
+			return `<span>` + strconv.Itoa(page) + `</span>`
+		},
+	)
+}
 
-	children, err := t.Query.Node.GetReleasedChildren(t.Query.User, core.ChronologicallyDesc, t.perPage, (t.page-1)*t.perPage)
+func (data *blogData) Next() *blogNode {
+	if len(data.Query.Next) > 0 {
+		return &blogNode{
+			NodeVersion: data.Query.Next[0],
+			Request:     data.Query.Request,
+		}
+	}
+	return nil
+}
+
+func (data *blogData) Children() ([]*blogChild, error) {
+
+	children, err := data.Query.Node.GetReleasedChildren(data.Query.User, core.ChronologicallyDesc, data.perPage, (data.page-1)*data.perPage)
 	if err != nil {
 		return nil, err
 	}
@@ -141,11 +156,11 @@ func (t *Blog) Children() ([]*blogChild, error) {
 		childQuery := &core.Query{
 			Node:    child.Node,
 			Version: child.Version,
-			Request: t.Query.Request,
+			Request: data.Query.Request,
 			Queue:   core.NewQueue(""),
 		}
 
-		if err := child.Do(childQuery); err != nil {
+		if err := childQuery.Run(); err != nil {
 			return nil, err
 		}
 
@@ -164,7 +179,7 @@ func (t *Blog) Children() ([]*blogChild, error) {
 		result = append(result, &blogChild{
 			blogNode: blogNode{
 				NodeVersion: child,
-				Request:     t.Query.Request,
+				Request:     data.Query.Request,
 			},
 			Body: template.HTML(bodyBytes),
 			Cut:  cut,
@@ -174,23 +189,18 @@ func (t *Blog) Children() ([]*blogChild, error) {
 	return result, nil
 }
 
-func (t *Blog) AddSlugs() []string {
-	if t.page > 1 {
-		return []string{"page", strconv.Itoa(t.page)}
+func (t *Blog) Run(r *core.Query) error {
+
+	var data = &blogData{
+		Query: r,
 	}
-	return nil
-}
-
-func (t *Blog) Do(r *core.Query) error {
-
-	t.Query = r
 
 	// take segment page/123 from queue before calling Recurse
 
 	if r.Queue.PopIf("page") {
 		pageStr, _ := r.Queue.Pop()
-		t.page, _ = strconv.Atoi(pageStr)
-		if t.page == 1 {
+		data.page, _ = strconv.Atoi(pageStr)
+		if data.page == 1 {
 			r.Set(
 				"head",
 				fmt.Sprintf(`<link rel="canonical" href="%s" />%s`, r.Node.Link(), r.Get("head")),
@@ -208,34 +218,38 @@ func (t *Blog) Do(r *core.Query) error {
 	if err != nil {
 		return err
 	}
-	var data = cfg.Section("").KeysHash()
+	var config = cfg.Section("").KeysHash()
 
-	t.perPage, _ = strconv.Atoi(data["per-page"])
-	if t.perPage <= 0 {
-		t.perPage = 10
+	data.perPage, _ = strconv.Atoi(config["per-page"])
+	if data.perPage <= 0 {
+		data.perPage = 10
 	}
 
 	if childrenCount, err := r.Node.CountReleasedChildren(); err == nil {
-		t.pages = int(math.Ceil(float64(childrenCount) / float64(t.perPage)))
+		data.pages = int(math.Ceil(float64(childrenCount) / float64(data.perPage)))
 	} else {
 		return err
 	}
 
-	if t.page < 1 {
-		t.page = 1
+	if data.page < 1 {
+		data.page = 1
 	}
 
-	if t.page > t.pages {
-		t.page = t.pages
+	if data.page > data.pages {
+		data.page = data.pages
 	}
 
-	t.ReadMore = data["readmore"]
-	if t.ReadMore == "" {
-		t.ReadMore = "Read more"
+	data.ReadMore = config["readmore"]
+	if data.ReadMore == "" {
+		data.ReadMore = "Read more"
+	}
+
+	if data.page > 1 {
+		r.Node.AddSlugs = []string{"page", strconv.Itoa(data.page)}
 	}
 
 	buf := &bytes.Buffer{}
-	if err := t.tmpl.Execute(buf, t); err != nil {
+	if err := t.tmpl.Execute(buf, data); err != nil {
 		return err
 	}
 	r.Set("body", buf.String())

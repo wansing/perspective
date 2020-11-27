@@ -1,9 +1,5 @@
 package core
 
-import (
-	"html/template"
-)
-
 type Order int
 
 const (
@@ -13,36 +9,44 @@ const (
 
 type ClassRegistry interface {
 	All() []string
-	Get(code string) (*Class, bool)
+	Get(code string) (Class, bool)
 }
 
-// A class defines the behavior of a node.
-type Class struct {
-	Create               func() Instance
-	Name                 string
-	Code                 string
-	Info                 string
-	SelectOrder          Order    // for backend select
-	FeaturedChildClasses []string // for backend create
+// A class executes a node.
+//
+// Class is an interface and not a struct, so it can't be modified.
+type Class interface {
+	Run(*Query) error
+	Code() string
+	Name() string
+	Info() string
+	FeaturedChildClasses() []string // for backend create
+	SelectOrder() Order             // for backend select
 }
 
-func (class *Class) InfoHTML() template.HTML {
-	return template.HTML(class.Info)
+type UnknownClass string
+
+// Run won't reveal any content to the viewer.
+func (UnknownClass) Run(r *Query) error {
+	return r.Recurse()
 }
 
-// An instance of a class can store request-scoped data.
-type Instance interface {
-	AddSlugs() []string // is called after Do
-	Do(*Query) error
+func (class UnknownClass) Code() string {
+	return string(class)
 }
 
-type NOP struct{}
+func (UnknownClass) Name() string {
+	return "Unknown class"
+}
 
-func (t *NOP) AddSlugs() []string {
+func (UnknownClass) Info() string {
+	return ""
+}
+
+func (UnknownClass) FeaturedChildClasses() []string {
 	return nil
 }
 
-// Do won't reveal any content to the viewer.
-func (t *NOP) Do(r *Query) error {
-	return r.Recurse()
+func (UnknownClass) SelectOrder() Order {
+	return AlphabeticallyAsc
 }

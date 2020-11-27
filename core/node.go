@@ -72,36 +72,26 @@ type NodeVersion struct {
 
 type Node struct {
 	DBNode
-	Instance
-	Parent *Node // parent in node hierarchy or nil, required for permission checking
+	AddSlugs []string
+	Parent   *Node // parent in node hierarchy or nil, required for permission checking
 
 	db *CoreDB // TODO omit
 }
 
 // NewNode creates a Node.
 func (c *CoreDB) NewNode(parent *Node, dbNode DBNode) *Node {
-
-	var n = &Node{}
-	n.db = c
-	n.DBNode = dbNode
-	n.Instance = n.Class().Create()
-	n.Parent = parent
-
-	return n
+	return &Node{
+		DBNode: dbNode,
+		Parent: parent,
+		db:     c,
+	}
 }
 
-func (n *Node) Class() *Class {
-	class, ok := n.db.ClassRegistry.Get(n.ClassCode())
-	if !ok {
-		class = &Class{
-			Create: func() Instance {
-				return &NOP{}
-			},
-			Name: "Unknown",
-			Code: n.ClassCode(),
-		}
+func (n *Node) Class() Class {
+	if class, ok := n.db.ClassRegistry.Get(n.ClassCode()); ok {
+		return class
 	}
-	return class
+	return UnknownClass(n.ClassCode())
 }
 
 func (n *Node) GetVersion(versionNo int) (*Version, error) {

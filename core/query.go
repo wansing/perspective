@@ -27,8 +27,8 @@ type Query struct {
 	*Version                   // version of current node
 	Next     []NodeVersion     // executed nodes
 	RootURL  string            // "/" for main query, "/" or include base for included queries, TODO unused at the moment
-	Vars     map[string]string // node output
-	VarDepth map[string]int    // must be stored for each var separately
+	vars     map[string]string // node output
+	varDepth map[string]int    // must be stored for each var separately
 }
 
 // QueryFromContext gets a Query from the given context. It can panic.
@@ -45,7 +45,7 @@ func QueryFromContext(ctx context.Context) *Query {
 // Example:
 //
 //  {{.Include "/legal" "disclaimer" "body"}}
-func (r *Query) Include(args ...string) (template.HTML, error) {
+func (q *Query) Include(args ...string) (template.HTML, error) {
 
 	var baseLocation, command, varName string
 	switch len(args) {
@@ -66,18 +66,18 @@ func (r *Query) Include(args ...string) (template.HTML, error) {
 	}
 
 	if !path.IsAbs(baseLocation) {
-		baseLocation = path.Join(r.Node.Location(), baseLocation)
+		baseLocation = path.Join(q.Node.Location(), baseLocation)
 	}
 
-	if r.includes == nil { // in dummy requests
+	if q.includes == nil { // in dummy requests
 		return template.HTML(""), nil
 	}
 
-	if _, ok := r.includes[baseLocation][command]; !ok {
+	if _, ok := q.includes[baseLocation][command]; !ok {
 
 		// base
 
-		base, err := r.Open(baseLocation) // returns the leaf
+		base, err := q.Open(baseLocation) // returns the leaf
 		if err != nil {
 			return template.HTML(""), err
 		}
@@ -90,7 +90,7 @@ func (r *Query) Include(args ...string) (template.HTML, error) {
 
 		includeQuery := &Query{
 			Node:    base,
-			Request: r.Request,
+			Request: q.Request,
 			Queue:   NewQueue(command),
 		}
 
@@ -100,47 +100,36 @@ func (r *Query) Include(args ...string) (template.HTML, error) {
 
 		// cache vars
 
-		if _, ok := r.includes[baseLocation]; !ok {
-			r.includes[baseLocation] = make(map[string]map[string]string)
+		if _, ok := q.includes[baseLocation]; !ok {
+			q.includes[baseLocation] = make(map[string]map[string]string)
 		}
 
-		r.includes[baseLocation][command] = includeQuery.Vars
+		q.includes[baseLocation][command] = includeQuery.vars
 	}
 
-	if v, ok := r.includes[baseLocation][command][varName]; ok {
+	if v, ok := q.includes[baseLocation][command][varName]; ok {
 		return template.HTML(v), nil
 	} else {
 		return template.HTML(""), fmt.Errorf("include %s: var %s %w", command, varName, ErrNotFound)
 	}
 }
 
-// Recurse takes the next slug from the queue, creates the corresponding node and executes it.
-func (r *Query) Recurse() error {
+// Recurse takes the next slug from the queue, creates the corresponding node and runs it.
+func (q *Query) Recurse() error {
 
 	// make this function idempotent
 
-	if r.recursed == nil {
-		r.recursed = make(map[int]interface{})
+	if q.recursed == nil {
+		q.recursed = make(map[int]interface{})
 	}
 
-	if _, ok := r.recursed[r.Node.ID()]; ok {
+	if _, ok := q.recursed[q.Node.ID()]; ok {
 		return nil // already done
 	}
-	r.recursed[r.Node.ID()] = struct{}{}
+	q.recursed[q.Node.ID()] = struct{}{}
 
-	// When the template engine recovers from a panic, it displays an 404 error and logs the panic message.
-	// This displays the panic message and logs a stack trace.
-
-	defer func() {
-		if val := recover(); val != nil {
-			r.Set("body", fmt.Sprintf("<pre>%s</pre>", val))
-			log.Printf("panic: %s\n%s", val, string(debug.Stack()))
-			r.writer.WriteHeader(http.StatusInternalServerError)
-		}
-	}()
-
-	if r.watchdog++; r.watchdog > 1000 {
-		return fmt.Errorf("watchdog reached %d", r.watchdog)
+	if q.watchdog++; q.watchdog > 1000 {
+		return fmt.Errorf("watchdog reached %d", q.watchdog)
 	}
 
 	// get node
@@ -148,30 +137,30 @@ func (r *Query) Recurse() error {
 	var n *Node
 	var err error
 
-	if r.Queue.Len() == 0 {
+	if q.Queue.Len() == 0 {
 		// try default
-		n, err = r.Request.db.GetNodeBySlug(r.Node, "default")
+		n, err = q.Request.db.GetNodeBySlug(q.Node, "default")
 		if err != nil {
 			return nil // no problem, it was just a try
 		}
 	} else {
-		var slug, _ = r.Queue.Pop()
-		n, err = r.Request.db.GetNodeBySlug(r.Node, slug)
+		var slug, _ = q.Queue.Pop()
+		n, err = q.Request.db.GetNodeBySlug(q.Node, slug)
 		if err != nil {
 			// restore queue and resort to default
-			r.Queue.push(slug)
-			n, err = r.Request.db.GetNodeBySlug(r.Node, "default")
+			q.Queue.push(slug)
+			n, err = q.Request.db.GetNodeBySlug(q.Node, "default")
 			if err != nil {
-				return fmt.Errorf("pop (%d, %s): %w", r.Node.ID(), slug, err) // neither slug nor default were found
+				return fmt.Errorf("get node %s/%s: %w", q.Node.Location(), slug, err) // neither slug nor default were found
 			}
 		}
 	}
 
-	n.Parent = r.Node
+	n.Parent = q.Node
 
 	// check permission
 
-	if err := n.RequirePermission(Read, r.User); err != nil {
+	if err := n.RequirePermission(Read, q.User); err != nil {
 		return err
 	}
 
@@ -182,36 +171,54 @@ func (r *Query) Recurse() error {
 		return err
 	}
 
-	// setup context
+	// setup context and run the new node
 
-	var oldNode = r.Node
-	var oldVersion = r.Version
+	var oldNode = q.Node
+	var oldVersion = q.Version
 
-	r.Node = n
-	r.Version = v
+	q.Node = n
+	q.Version = v
 
-	// run class code
-
-	if err := n.Do(r); err != nil {
-		r.Danger(err)
+	if err := q.Run(); err != nil {
+		q.Danger(err)
 	}
 
-	r.Node = oldNode
-	r.Version = oldVersion
-	r.Next = append([]NodeVersion{{n, v}}, r.Next...)
+	q.Node = oldNode
+	q.Version = oldVersion
+	q.Next = append([]NodeVersion{{n, v}}, q.Next...)
 
 	return nil
+}
+
+// Runs q.Node.
+func (q *Query) Run() error {
+
+	if q.watchdog++; q.watchdog > 1000 {
+		return fmt.Errorf("watchdog reached %d", q.watchdog)
+	}
+
+	// recover before rootTemplate does, displays the panic message and log a stack trace
+
+	defer func() {
+		if val := recover(); val != nil {
+			q.Set("body", fmt.Sprintf("<pre>%s</pre>", val))
+			log.Printf("panic: %s\n%s", val, string(debug.Stack()))
+			q.writer.WriteHeader(http.StatusInternalServerError)
+		}
+	}()
+
+	return q.Node.Class().Run(q)
 }
 
 // Get returns the value of a variable and clears it.
 //
 // If IsHTML is false (i.e. the content type is not HTML), it returns an empty string as the return value will be thrown away anyway.
-func (r *Query) Get(varName string) template.HTML {
+func (q *Query) Get(varName string) template.HTML {
 
-	var val, _ = r.Vars[varName]
-	delete(r.Vars, varName)
+	var val, _ = q.vars[varName]
+	delete(q.vars, varName)
 
-	if r.IsHTML() {
+	if q.IsHTML() {
 		return template.HTML(val)
 	} else {
 		return template.HTML("") // the return value will be thrown away anyway
@@ -219,23 +226,23 @@ func (r *Query) Get(varName string) template.HTML {
 }
 
 // Set sets a variable if it is empty or if the current node is deeper than the origin of the existing value.
-func (r *Query) Set(name, value string) {
+func (q *Query) Set(name, value string) {
 
-	if !r.IsHTML() && r.Vars[name] != "" {
+	if !q.IsHTML() && q.vars[name] != "" {
 		// don't overwrite content, which is probably JSON data or so
 		return
 	}
 
-	if r.Vars == nil {
-		r.Vars = make(map[string]string)
+	if q.vars == nil {
+		q.vars = make(map[string]string)
 	}
 
-	if r.VarDepth == nil {
-		r.VarDepth = make(map[string]int)
+	if q.varDepth == nil {
+		q.varDepth = make(map[string]int)
 	}
 
-	if r.Vars[name] == "" || r.Node.Depth() > r.VarDepth[name] { // set if old value is empty (e.g. has been fetched using Get) or if the new value comes from a deeper node
-		r.Vars[name] = value
-		r.VarDepth[name] = r.Node.Depth()
+	if q.vars[name] == "" || q.Node.Depth() > q.varDepth[name] { // set if old value is empty (e.g. has been fetched using Get) or if the new value comes from a deeper node
+		q.vars[name] = value
+		q.varDepth[name] = q.Node.Depth()
 	}
 }

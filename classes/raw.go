@@ -9,48 +9,56 @@ import (
 	"github.com/wansing/perspective/util"
 )
 
-func init() {
-	Register(&core.Class{
-		Create: func() core.Instance {
-			return &Raw{}
-		},
-		Name: "Raw HTML document",
-		Code: "raw",
-	})
-}
-
-var RawTemplateFuncs = template.FuncMap{
+var rawTemplateFuncs = template.FuncMap{
 	"more": func() template.HTML {
 		return template.HTML(util.CutMoreStr)
 	},
 }
 
-// Raw parses the user-defined content into templates. Variables can be set using {{define}}.
-//
-// Raw does not pass the Query to these user-defined templates.
-// It wraps some functions instead, making them available in templates.
-// Templates might still try to call Do and ParseExecute, but these functions require a Query as an argument.
-type Raw struct {
-	*core.Queue             // exposed to the user content
-	query       *core.Query // not exported, unavailable in user-defined templates
+func init() {
+	Register(func() core.Class {
+		return Raw{}
+	})
 }
 
-func (t *Raw) AddSlugs() []string {
+// Raw parses the user-defined content into templates. Variables can be set using {{define}}.
+type Raw struct {
+	// if we stored templateFuncs here, it would be harder for HTML to embed Raw
+}
+
+func (Raw) Code() string {
+	return "raw"
+}
+
+func (Raw) Name() string {
+	return "Raw HTML document"
+}
+
+func (Raw) Info() string {
+	return ""
+}
+
+func (Raw) FeaturedChildClasses() []string {
 	return nil
 }
 
-func (t *Raw) Do(r *core.Query) error {
-	return t.ParseAndExecute(r, t)
+func (Raw) SelectOrder() core.Order {
+	return core.AlphabeticallyAsc
 }
 
-func (t *Raw) ParseAndExecute(r *core.Query, data interface{}) error {
+func (raw Raw) Run(r *core.Query) error {
+	var data = &rawData{
+		Queue: r.Queue,
+		query: r,
+	}
+	return raw.ParseAndExecute(r, data)
+}
 
-	t.Queue = r.Queue
-	t.query = r
+func (Raw) ParseAndExecute(r *core.Query, data interface{}) error {
 
 	// parse and execute the user content into templates
 
-	parsed, err := template.New("body").Funcs(RawTemplateFuncs).Parse(r.Content())
+	parsed, err := template.New("body").Funcs(rawTemplateFuncs).Parse(r.Content())
 	if err != nil {
 		return err
 	}
@@ -97,40 +105,43 @@ func (t *Raw) ParseAndExecute(r *core.Query, data interface{}) error {
 	return r.Recurse() // Recurse is idempotent here. This call is in case the user content forgot it. This might mess up the output, but is still better than not recursing at all.
 }
 
-// wrappers for Query functions
-
-func (t *Raw) Get(varName string) template.HTML {
-	return t.query.Get(varName)
+type rawData struct {
+	*core.Queue             // exposed to the user content
+	query       *core.Query // not exported, unavailable in user-defined templates
 }
 
-func (t *Raw) Include(args ...string) (template.HTML, error) {
-	return t.query.Include(args...)
+func (data *rawData) Get(varName string) template.HTML {
+	return data.query.Get(varName)
 }
 
-func (t *Raw) Recurse() error {
-	return t.query.Recurse()
+func (data *rawData) Include(args ...string) (template.HTML, error) {
+	return data.query.Include(args...)
 }
 
-func (t *Raw) Set(name, value string) {
-	t.query.Set(name, value)
+func (data *rawData) Recurse() error {
+	return data.query.Recurse()
 }
 
-func (t *Raw) GetGlobal(varName string) template.HTML {
-	return t.query.GetGlobal(varName)
+func (data *rawData) Set(name, value string) {
+	data.query.Set(name, value)
 }
 
-func (t *Raw) HasGlobal(varName string) bool {
-	return t.query.HasGlobal(varName)
+func (data *rawData) GetGlobal(varName string) template.HTML {
+	return data.query.GetGlobal(varName)
 }
 
-func (t *Raw) SetGlobal(varName string, value string) interface{} {
-	return t.query.SetGlobal(varName, value)
+func (data *rawData) HasGlobal(varName string) bool {
+	return data.query.HasGlobal(varName)
 }
 
-func (t *Raw) Tag(tags ...string) interface{} {
-	return t.query.Version.Tag(tags...)
+func (data *rawData) SetGlobal(varName string, value string) interface{} {
+	return data.query.SetGlobal(varName, value)
 }
 
-func (t *Raw) Ts(dates ...string) interface{} {
-	return t.query.Version.Ts(dates...)
+func (data *rawData) Tag(tags ...string) interface{} {
+	return data.query.Version.Tag(tags...)
+}
+
+func (data *rawData) Ts(dates ...string) interface{} {
+	return data.query.Version.Ts(dates...)
 }

@@ -46,23 +46,19 @@ type Handler struct {
 	http.Handler
 }
 
-func (t *Handler) AddSlugs() []string {
-	return nil
-}
-
 // Empties the queue, creates an http.Request struct and an http.ResponseWriter, calls Handler.Handler.ServeHTTP and writes the result to the "body" variable.
-func (t *Handler) Do(r *Query) error {
+func (t *Handler) Run(q *Query) error {
 
-	var path = r.Queue.String()
-	r.Queue = &Queue{} // clear queue
+	var path = q.Queue.String()
+	q.Queue = &Queue{} // clear queue
 
-	// no need to call r.Recurse because the queue is empty anyway
+	// no need to call q.Recurse because the queue is empty anyway
 
-	var req = r.request.Clone(
+	var req = q.request.Clone(
 		context.WithValue(
-			r.request.Context(),
+			q.request.Context(),
 			queryContextKey{},
-			r,
+			q,
 		),
 	)
 
@@ -73,12 +69,12 @@ func (t *Handler) Do(r *Query) error {
 	}
 
 	var writer = &responseWriter{
-		prefix: r.Node.Link(),
-		writer: r.writer,
+		prefix: q.Node.Link(),
+		writer: q.writer,
 	}
 
 	t.Handler.ServeHTTP(writer, req)
 
-	r.Set("body", writer.String())
+	q.Set("body", writer.String())
 	return nil
 }

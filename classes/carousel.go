@@ -1,40 +1,57 @@
 package classes
 
 import (
+	"fmt"
 	"os"
-	"strconv"
 
 	"github.com/wansing/perspective/core"
 )
 
 func init() {
-	Register(&core.Class{
-		Create: func() core.Instance {
-			return &Carousel{}
-		},
-		Name: "Carousel",
-		Code: "carousel",
-		Info: `Image carousel`,
+	Register(func() core.Class {
+		return &Carousel{}
 	})
 }
 
 type Carousel struct {
-	CarouselID string
-	Files      []os.FileInfo
+	Raw // provides template execution
 }
 
-func (t *Carousel) AddSlugs() []string {
+func (*Carousel) Code() string {
+	return "carousel"
+}
+
+func (*Carousel) Name() string {
+	return "Carousel"
+}
+
+func (*Carousel) Info() string {
+	return "Image carousel"
+}
+
+func (*Carousel) FeaturedChildClasses() []string {
 	return nil
 }
 
-func (t *Carousel) Do(r *core.Query) error {
+func (*Carousel) SelectOrder() core.Order {
+	return core.AlphabeticallyAsc
+}
 
-	t.CarouselID = "carousel-" + strconv.Itoa(r.Node.ID())
+type carouselData struct {
+	ID    string
+	Files []os.FileInfo
+}
 
-	var err error
-	t.Files, err = r.Node.Folder().Files()
+func (carousel *Carousel) Run(r *core.Query) error {
+
+	var files, err = r.Node.Folder().Files()
 	if err != nil {
 		return err
+	}
+
+	var data = &carouselData{
+		ID:    fmt.Sprintf("carousel-%d", r.Node.ID()),
+		Files: files,
 	}
 
 	r.SetGlobal("include-bootstrap-4-css", "true")
@@ -64,5 +81,6 @@ func (t *Carousel) Do(r *core.Query) error {
 			</a>
 		</div>`)
 
-	return r.Recurse()
+	// don't call t.Raw.Run, call t.Raw.ParseAndExecute with own data instead
+	return carousel.Raw.ParseAndExecute(r, data)
 }

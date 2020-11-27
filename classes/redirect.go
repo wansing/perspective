@@ -8,22 +8,34 @@ import (
 )
 
 func init() {
-	Register(&core.Class{
-		Create: func() core.Instance {
-			return &Redirect{}
-		},
-		Name: "Redirect",
-		Code: "redirect",
+	Register(func() core.Class {
+		return &Redirect{}
 	})
 }
 
 type Redirect struct{}
 
-func (t *Redirect) AddSlugs() []string {
+func (Redirect) Code() string {
+	return "redirect"
+}
+
+func (Redirect) Name() string {
+	return "Redirect"
+}
+
+func (Redirect) Info() string {
+	return ""
+}
+
+func (Redirect) FeaturedChildClasses() []string {
 	return nil
 }
 
-func (t *Redirect) Do(r *core.Query) error {
+func (Redirect) SelectOrder() core.Order {
+	return core.AlphabeticallyAsc
+}
+
+func (Redirect) Run(r *core.Query) error {
 
 	u, err := url.Parse(r.Version.Content())
 	if err != nil {

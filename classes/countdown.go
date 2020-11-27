@@ -11,24 +11,40 @@ import (
 )
 
 func init() {
-	Register(&core.Class{
-		Create: func() core.Instance {
-			return &Countdown{
-				End: time.Now(),
-			}
-		},
-		Name: "Countdown",
-		Code: "countdown",
-		Info: `<p>Countdown respects leap years and daylight saving time. Use it like this:</p>
-
-<pre><code>{{.SetEnd "1 Jan 2100 12:00:00 -0100"}}
-{{.Years}} years {{.Months}} months {{.Days}} days {{.Hours}} hours {{.Minutes}} minutes {{.Seconds}} seconds left
-</code></pre>`,
+	Register(func() core.Class {
+		return &Countdown{}
 	})
 }
 
 type Countdown struct {
-	Raw         // provides template execution
+	Raw // provides template execution
+}
+
+func (Countdown) Code() string {
+	return "countdown"
+}
+
+func (Countdown) Name() string {
+	return "Countdown timer"
+}
+
+func (Countdown) Info() string {
+	return `<p>Countdown respects leap years and daylight saving time. Use it like this:</p>
+
+<pre><code>{{.SetEnd "1 Jan 2100 12:00:00 -0100"}}
+{{.Years}} years {{.Months}} months {{.Days}} days {{.Hours}} hours {{.Minutes}} minutes {{.Seconds}} seconds left
+</code></pre>`
+}
+
+func (Countdown) FeaturedChildClasses() []string {
+	return nil
+}
+
+func (Countdown) SelectOrder() core.Order {
+	return core.AlphabeticallyAsc
+}
+
+type countdownData struct {
 	End         time.Time
 	CountdownID string // random string, so multiple instances of countdown won't collide
 	Years       template.HTML
@@ -39,40 +55,17 @@ type Countdown struct {
 	Seconds     template.HTML
 }
 
-func (t *Countdown) SetEnd(endStr string) error {
-	var end, err = time.Parse("_2 Jan 2006 15:04:05 -0700", endStr)
-	if err != nil {
-		return err
-	}
-
-	var years, months, days, hours, minutes, seconds = timex.Diff(time.Now(), end) // timex respect leap years
-
-	t.End = end
-	t.Years = template.HTML(fmt.Sprintf(`<span id="years-%s">%d</span>`, t.CountdownID, years))
-	t.Months = template.HTML(fmt.Sprintf(`<span id="months-%s">%d</span>`, t.CountdownID, months))
-	t.Days = template.HTML(fmt.Sprintf(`<span id="days-%s">%d</span>`, t.CountdownID, days))
-	t.Hours = template.HTML(fmt.Sprintf(`<span id="hours-%s">%02d</span>`, t.CountdownID, hours))
-	t.Minutes = template.HTML(fmt.Sprintf(`<span id="minutes-%s">%02d</span>`, t.CountdownID, minutes))
-	t.Seconds = template.HTML(fmt.Sprintf(`<span id="seconds-%s">%02d</span>`, t.CountdownID, seconds))
-	return nil
-}
-
-func (t *Countdown) CountdownIDJS() template.JS {
-	return template.JS(t.CountdownID)
-}
-
-func (t *Countdown) AddSlugs() []string {
-	return nil
-}
-
-// shadows Raw.Do
-func (t *Countdown) Do(r *core.Query) error {
+// shadows Raw.Run
+func (countdown Countdown) Run(r *core.Query) error {
 
 	var countdownID = make([]byte, 6)
 	if _, err := rand.Read(countdownID); err != nil {
 		return err
 	}
-	t.CountdownID = fmt.Sprintf("c%X", countdownID) // hexadecimal, start with a character so digits won't look like subtraction
+
+	var data = &countdownData{
+		CountdownID: fmt.Sprintf("c%X", countdownID), // hexadecimal, start with a character so digits won't look like subtraction
+	}
 
 	r.SetContent(
 		`{{define "head"}}
@@ -187,6 +180,28 @@ func (t *Countdown) Do(r *core.Query) error {
 			</script>
 		{{end}}` + r.Content())
 
-	// don't call t.Raw.Do, call t.Raw.ParseAndExecute with own data instead
-	return t.Raw.ParseAndExecute(r, t)
+	// don't call t.Raw.Run, call t.Raw.ParseAndExecute with own data instead
+	return countdown.Raw.ParseAndExecute(r, data)
+}
+
+func (data *countdownData) SetEnd(endStr string) error {
+	var end, err = time.Parse("_2 Jan 2006 15:04:05 -0700", endStr)
+	if err != nil {
+		return err
+	}
+
+	var years, months, days, hours, minutes, seconds = timex.Diff(time.Now(), end) // timex respect leap years
+
+	data.End = end
+	data.Years = template.HTML(fmt.Sprintf(`<span id="years-%s">%d</span>`, data.CountdownID, years))
+	data.Months = template.HTML(fmt.Sprintf(`<span id="months-%s">%d</span>`, data.CountdownID, months))
+	data.Days = template.HTML(fmt.Sprintf(`<span id="days-%s">%d</span>`, data.CountdownID, days))
+	data.Hours = template.HTML(fmt.Sprintf(`<span id="hours-%s">%02d</span>`, data.CountdownID, hours))
+	data.Minutes = template.HTML(fmt.Sprintf(`<span id="minutes-%s">%02d</span>`, data.CountdownID, minutes))
+	data.Seconds = template.HTML(fmt.Sprintf(`<span id="seconds-%s">%02d</span>`, data.CountdownID, seconds))
+	return nil
+}
+
+func (data *countdownData) CountdownIDJS() template.JS {
+	return template.JS(data.CountdownID)
 }

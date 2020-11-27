@@ -28,16 +28,16 @@ var setClassTmpl = tmpl(`<h1>Set class of {{ .Selected.Location }}</h1>
 
 type setClassData struct {
 	*context
-	Selected *core.Node
-	NewClass string
+	Selected     *core.Node
+	NewClassCode string
 }
 
 func (data *setClassData) SelectChildClass() template.HTML {
 	var featuredChildClasses []string
 	if data.Selected.Parent != nil {
-		featuredChildClasses = data.Selected.Parent.Class().FeaturedChildClasses
+		featuredChildClasses = data.Selected.Parent.Class().FeaturedChildClasses()
 	}
-	return SelectChildClass(data.db.ClassRegistry, featuredChildClasses, data.NewClass)
+	return SelectChildClass(data.db.ClassRegistry, featuredChildClasses, data.NewClassCode)
 }
 
 func setClass(w http.ResponseWriter, req *http.Request, ctx *context, params httprouter.Params) error {
@@ -47,7 +47,7 @@ func setClass(w http.ResponseWriter, req *http.Request, ctx *context, params htt
 		return err
 	}
 
-	var newClass = selected.Class().Code
+	var newClassCode = selected.Class().Code()
 
 	// check permission
 
@@ -58,8 +58,8 @@ func setClass(w http.ResponseWriter, req *http.Request, ctx *context, params htt
 	// set class
 
 	if req.Method == http.MethodPost {
-		newClass = req.PostFormValue("class")
-		if err = ctx.db.SetClass(selected, newClass); err == nil {
+		newClassCode = req.PostFormValue("class")
+		if err = ctx.db.SetClass(selected, newClassCode); err == nil {
 			ctx.SeeOther("/choose/1%s", selected.Location())
 			return nil
 		} else {
@@ -68,8 +68,8 @@ func setClass(w http.ResponseWriter, req *http.Request, ctx *context, params htt
 	}
 
 	return setClassTmpl.Execute(w, &setClassData{
-		context:  ctx,
-		NewClass: newClass,
-		Selected: selected,
+		context:      ctx,
+		NewClassCode: newClassCode,
+		Selected:     selected,
 	})
 }

@@ -39,7 +39,7 @@ type createData struct {
 
 // wrapper for template
 func (data *createData) SelectChildClass() template.HTML {
-	return SelectChildClass(data.db.ClassRegistry, data.Selected.Class().FeaturedChildClasses, data.Class)
+	return SelectChildClass(data.db.ClassRegistry, data.Selected.Class().FeaturedChildClasses(), data.Class)
 }
 
 func create(w http.ResponseWriter, req *http.Request, ctx *context, params httprouter.Params) error {

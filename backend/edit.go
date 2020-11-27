@@ -275,7 +275,7 @@ func (data *editData) GetFiles() ([]os.FileInfo, error) {
 }
 
 func (data *editData) Info() template.HTML {
-	return data.Selected.Class().InfoHTML()
+	return template.HTML(data.Selected.Class().Info())
 }
 
 func (data *editData) VersionHistory() (template.HTML, error) {

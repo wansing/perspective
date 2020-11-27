@@ -44,13 +44,13 @@ type Request struct {
 	User DBUser  // must not be nil
 
 	// http
-	writer  http.ResponseWriter
 	request *http.Request
+	writer  http.ResponseWriter
 
 	// content
-	vars      map[string]string                       // global variables
 	includes  map[string]map[string]map[string]string // base location => command => resultName => value
 	Templates map[string]*template.Template           // global templates
+	vars      map[string]string                       // global variables
 
 	// robustness
 	recursed      map[int]interface{} // avoid double recursion and infinite loops
@@ -68,11 +68,11 @@ func (c *CoreDB) NewRequest(w http.ResponseWriter, httpreq *http.Request) *Reque
 	var req = &Request{
 		db:        c,
 		User:      Guest{},
-		writer:    w,
 		request:   httpreq,
-		vars:      make(map[string]string),
+		writer:    w,
 		includes:  make(map[string]map[string]map[string]string),
 		Templates: make(map[string]*template.Template),
+		vars:      make(map[string]string),
 	}
 
 	req.language, _ = language.MatchStrings(langMatcher, httpreq.Header.Get("Accept-Language"))
@@ -93,11 +93,9 @@ func (c *CoreDB) NewRequest(w http.ResponseWriter, httpreq *http.Request) *Reque
 func newDummyRequest() *Request {
 	return &Request{
 		User:      Guest{},
-		writer:    nil,
-		request:   nil,
-		vars:      make(map[string]string),
-		includes:  nil, // include checks that
+		includes:  nil, // Include checks that
 		Templates: make(map[string]*template.Template),
+		vars:      make(map[string]string),
 	}
 }
 

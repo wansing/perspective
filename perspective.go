@@ -274,7 +274,7 @@ func listen(db *core.CoreDB, addr string, base string) {
 	// golang mux recovers from panics, so the program won't crash
 
 	// <body> is like mainQuery.Include("/", "path/foo/bar", "body")
-	rootTemplate := template.Must(template.New("").Parse(`
+	var rootTemplate = template.Must(template.New("").Parse(`
 {{ define "base" -}}
 <!DOCTYPE html>
 <html{{ with .GetGlobal "lang" }} lang="{{ . }}"{{ end }}>

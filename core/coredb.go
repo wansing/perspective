@@ -313,7 +313,7 @@ func (c *CoreDB) SetWorkflowGroup(n *Node, v *Version, newWorkflowGroup int) err
 			Version: v,
 		}
 
-		if err := n.Do(tmpQuery); err != nil {
+		if err := tmpQuery.Run(); err != nil {
 			return err
 		}
 

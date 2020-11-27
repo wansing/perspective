@@ -66,7 +66,7 @@ func SelectChildClass(reg core.ClassRegistry, featuredChildClasses []string, sel
 		for _, code := range featuredChildClasses {
 			if class, ok := reg.Get(code); ok {
 				b.WriteString(`<option `)
-				if class.Code == selectedCode {
+				if class.Code() == selectedCode {
 					b.WriteString(`selected `)
 					selected = true
 				}
@@ -83,7 +83,7 @@ func SelectChildClass(reg core.ClassRegistry, featuredChildClasses []string, sel
 	for _, code := range reg.All() {
 		if class, ok := reg.Get(code); ok {
 			b.WriteString(`<option `)
-			if !selected && class.Code == selectedCode {
+			if !selected && class.Code() == selectedCode {
 				b.WriteString(`selected `)
 			}
 			fmt.Fprintf(b, `value="%s">%s: %s</option>`, class.Code, class.Code, class.Name)
