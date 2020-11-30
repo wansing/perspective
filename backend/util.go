@@ -70,7 +70,7 @@ func SelectChildClass(reg core.ClassRegistry, featuredChildClasses []string, sel
 					b.WriteString(`selected `)
 					selected = true
 				}
-				fmt.Fprintf(b, `value="%s">%s: %s</option>`, class.Code, class.Code, class.Name)
+				fmt.Fprintf(b, `value="%s">%s: %s</option>`, class.Code(), class.Code(), class.Name())
 			}
 		}
 		b.WriteString(`</optgroup>`)
@@ -86,7 +86,7 @@ func SelectChildClass(reg core.ClassRegistry, featuredChildClasses []string, sel
 			if !selected && class.Code() == selectedCode {
 				b.WriteString(`selected `)
 			}
-			fmt.Fprintf(b, `value="%s">%s: %s</option>`, class.Code, class.Code, class.Name)
+			fmt.Fprintf(b, `value="%s">%s: %s</option>`, class.Code(), class.Code(), class.Name())
 		}
 	}
 
