@@ -10,31 +10,31 @@ import (
 	"gitlab.com/golang-commonmark/markdown"
 )
 
-var markdownParser *markdown.Markdown = markdown.New(markdown.HTML(true), markdown.Linkify(true), markdown.Typographer(true), markdown.MaxNesting(10))
+var commonMarkParser *markdown.Markdown = markdown.New(markdown.HTML(true), markdown.Linkify(true), markdown.Typographer(true), markdown.MaxNesting(10))
 
 func init() {
 	Register(func() core.Class {
-		return &Markdown{}
+		return &CommonMark{}
 	})
 }
 
-// Markdown renders the content as markdown and runs HTML.
+// CommonMark renders the content as CommonMark markdown and runs HTML.
 //
 // This order is crucial. If templates were processed first, then embedded content would be rendered as well.
 // Now instead, markdown rendering must take care to skip template instructions.
-type Markdown struct {
+type CommonMark struct {
 	HTML
 }
 
-func (Markdown) Code() string {
-	return "markdown"
+func (CommonMark) Code() string {
+	return "commonmark"
 }
 
-func (Markdown) Name() string {
-	return "Markdown document"
+func (CommonMark) Name() string {
+	return "Markdown document (CommonMark)"
 }
 
-func (Markdown) Info() string {
+func (CommonMark) Info() string {
 	return `<p>Translates <a href="https://spec.commonmark.org/0.28/">CommonMark Markdown</a> to HTML.</p>
 			<h4>Examples</h4>
 			<table class="table table-sm">
@@ -79,15 +79,15 @@ func (Markdown) Info() string {
 			</table>`
 }
 
-func (Markdown) FeaturedChildClasses() []string {
+func (CommonMark) FeaturedChildClasses() []string {
 	return nil
 }
 
-func (Markdown) SelectOrder() core.Order {
+func (CommonMark) SelectOrder() core.Order {
 	return core.AlphabeticallyAsc
 }
 
-func (md Markdown) Run(r *core.Query) error {
+func (md CommonMark) Run(r *core.Query) error {
 
 	rendered := renderMarkdown(strings.NewReader(r.Content()))
 	r.SetContent(rendered)
@@ -113,7 +113,7 @@ func renderMarkdown(input io.Reader) string {
 
 	// render markdown
 
-	var tokens = markdownParser.Parse(unindentedContent.Bytes())
+	var tokens = commonMarkParser.Parse(unindentedContent.Bytes())
 	for i, t := range tokens {
 		if inline, ok := t.(*markdown.Inline); ok {
 			if strings.HasPrefix(inline.Content, "{{") && strings.HasSuffix(inline.Content, "}}") {
@@ -126,6 +126,6 @@ func renderMarkdown(input io.Reader) string {
 	}
 
 	var result = &bytes.Buffer{}
-	markdownParser.RenderTokens(result, tokens)
+	commonMarkParser.RenderTokens(result, tokens)
 	return result.String()
 }
