@@ -274,9 +274,7 @@ func listen(db *core.CoreDB, addr string, base string) {
 	// golang mux recovers from panics, so the program won't crash
 
 	// <body> is like mainQuery.Include("/", "path/foo/bar", "body")
-	var rootTemplate = template.Must(template.New("").Parse(`
-{{ define "base" -}}
-<!DOCTYPE html>
+	var rootTemplate = template.Must(template.New("").Parse(`<!DOCTYPE html>
 <html{{ with .GetGlobal "lang" }} lang="{{ . }}"{{ end }}>
 	<head>
 		<base href="` + base + `">
@@ -301,8 +299,7 @@ func listen(db *core.CoreDB, addr string, base string) {
 		{{ .RenderNotifications }}
 		{{ .Get "body" }}
 	</body>
-</html>
-{{ end }}`))
+</html>`))
 
 	var waitingControllers sync.WaitGroup
 
@@ -334,7 +331,7 @@ func listen(db *core.CoreDB, addr string, base string) {
 				// rootTemplate could be the content of a virtual node. But that would be much effort, so we just do this:
 
 				if mainQuery.IsHTML() {
-					if err := rootTemplate.ExecuteTemplate(w, "base", mainQuery); err != nil {
+					if err := rootTemplate.Execute(w, mainQuery); err != nil {
 						http.NotFound(w, req)
 					}
 				} else {
