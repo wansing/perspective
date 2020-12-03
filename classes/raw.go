@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"html/template"
+	"sort"
 
 	"github.com/wansing/perspective/core"
 	"github.com/wansing/perspective/util"
@@ -63,43 +64,58 @@ func (Raw) ParseAndExecute(r *core.Query, data interface{}) error {
 		return err
 	}
 
-	var globalTemplates []*template.Template
-	var localTemplates []*template.Template
+	var global []*template.Template
+	var local []*template.Template
 
-	for _, pt := range parsed.Templates() {
-		if util.IsFirstUpper(pt.Name()) {
-			globalTemplates = append(globalTemplates, pt)
+	for _, t := range parsed.Templates() { // order is random
+		if util.IsFirstUpper(t.Name()) {
+			global = append(global, t)
 		} else {
-			localTemplates = append(localTemplates, pt)
+			local = append(local, t)
 		}
 	}
 
-	// parsed templates are still associated to each other, so it's enough to add the old global templates to one of the new localTemplates
+	// parsed templates are associated to each other, so it's enough to add each long-known global template to any local template
 
-	for _, oldGlobal := range r.Templates {
-		_, err = localTemplates[0].AddParseTree(oldGlobal.Name(), oldGlobal.Tree)
+	for _, t := range r.Templates {
+		_, err = local[0].AddParseTree(t.Name(), t.Tree)
 		if err != nil {
 			return err
 		}
 	}
 
-	// now add new globalTemplates to r.Templates
+	// now add new global templates to r.Templates, Clone() dissociates them
 
-	for _, newGlobal := range globalTemplates {
-		r.Templates[newGlobal.Name()], err = newGlobal.Clone()
+	for _, t := range global {
+		r.Templates[t.Name()], err = t.Clone()
 		if err != nil {
 			return err
 		}
 	}
+
+	// sort local templates, "body" must be executed last because it usually contains {{.Recurse}}
+
+	sort.Slice(
+		local,
+		func(i, j int) bool { // less
+			if local[i].Name() == "body" {
+				return false // "body" is never less
+			}
+			if local[j].Name() == "body" {
+				return true // everything is less compared to "body"
+			}
+			return local[i].Name() < local[j].Name()
+		},
+	)
 
 	// execute local templates
 
-	for _, lt := range localTemplates {
+	for _, t := range local {
 		buf := &bytes.Buffer{}
-		if err := lt.Execute(buf, data); err != nil { // recursion is done here
+		if err := t.Execute(buf, data); err != nil { // recursion is done here
 			return fmt.Errorf("%s: %v", r.Node.Location(), err)
 		}
-		r.Set(lt.Name(), buf.String())
+		r.Set(t.Name(), buf.String())
 	}
 
 	return r.Recurse() // Recurse is idempotent here. This call is in case the user content forgot it. This might mess up the output, but is still better than not recursing at all.
