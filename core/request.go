@@ -48,8 +48,8 @@ type Request struct {
 	writer  http.ResponseWriter
 
 	// content
-	includes  map[string]map[string]map[string]string // base location => command => resultName => value
-	Templates map[string]*template.Template           // global templates
+	includes  map[string]map[string]map[string]string // base => command => resultName => value, execute every (base, command) just once
+	Templates map[string]*template.Template           // global templates, tailored to class "raw", TODO move to context or so
 	vars      map[string]string                       // global variables
 
 	// robustness
@@ -181,22 +181,13 @@ func (req *Request) Open(path string) (*Node, error) {
 }
 
 // GetGlobal returns the value of a global variable.
-func (req *Request) GetGlobal(varName string) template.HTML {
-	return template.HTML(req.vars[varName])
+func (req *Request) GetGlobal(varName string) string {
+	return req.vars[varName]
 }
 
-// HasGlobal returns whether a global variable with the given name exists.
-func (req *Request) HasGlobal(varName string) bool {
-	_, ok := req.vars[varName]
-	return ok
-}
-
-// SetGlobal sets a global variable to a given value.
-//
-// For usage in templates, funcs must return "one return value (of any type) or two return values, the second of which is an error."
-func (req *Request) SetGlobal(varName string, value string) interface{} {
+// SetGlobal sets a global variable.
+func (req *Request) SetGlobal(varName string, value string) {
 	req.vars[varName] = value
-	return nil
 }
 
 // IsHTML returns true if the Content-Type field of the header

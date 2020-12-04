@@ -280,18 +280,18 @@ func listen(db *core.CoreDB, addr string, base string) {
 		<base href="` + base + `">
 		<meta charset="utf-8">
 		{{ .Get "head" }}
-		{{- if .HasGlobal "include-bootstrap-4-css" }}
+		{{- if .GetGlobal "include-bootstrap-4-css" }}
 			<link rel="stylesheet" type="text/css" href="/assets/bootstrap-4.4.1.min.css">
 			<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
 		{{ end -}}
-		{{- if .HasGlobal "include-jquery-3" }}
+		{{- if .GetGlobal "include-jquery-3" }}
 			<!-- Bootstrap's JavaScript requires jQuery. jQuery must be included before Bootstrap's JavaScript. -->
 			<script src="/assets/jquery-3.3.1.min.js"></script>
 		{{ end -}}
-		{{- if .HasGlobal "include-bootstrap-4-js" }}
+		{{- if .GetGlobal "include-bootstrap-4-js" }}
 			<script src="/assets/bootstrap-4.4.1.min.js"></script>
 		{{ end -}}
-		{{- if .HasGlobal "include-taboverride-4" }}
+		{{- if .GetGlobal "include-taboverride-4" }}
 			<script src="/assets/taboverride-4.0.3.min.js"></script>
 		{{ end -}}
 	</head>

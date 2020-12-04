@@ -126,8 +126,12 @@ type rawData struct {
 	query       *core.Query // not exported, unavailable in user-defined templates
 }
 
-func (data *rawData) Get(varName string) template.HTML {
-	return data.query.Get(varName)
+func (data *rawData) Get(name string) template.HTML {
+	return template.HTML(data.query.Get(name))
+}
+
+func (data *rawData) GetGlobal(name string) template.HTML {
+	return template.HTML(data.query.GetGlobal(name))
 }
 
 func (data *rawData) Include(args ...string) (template.HTML, error) {
@@ -138,20 +142,16 @@ func (data *rawData) Recurse() error {
 	return data.query.Recurse()
 }
 
-func (data *rawData) Set(name, value string) {
+// "Such a method must have one return value (of any type) or two return values, the second of which is an error."
+func (data *rawData) Set(name, value string) interface{} {
 	data.query.Set(name, value)
+	return nil
 }
 
-func (data *rawData) GetGlobal(varName string) template.HTML {
-	return data.query.GetGlobal(varName)
-}
-
-func (data *rawData) HasGlobal(varName string) bool {
-	return data.query.HasGlobal(varName)
-}
-
-func (data *rawData) SetGlobal(varName string, value string) interface{} {
-	return data.query.SetGlobal(varName, value)
+// "Such a method must have one return value (of any type) or two return values, the second of which is an error."
+func (data *rawData) SetGlobal(name string, value string) interface{} {
+	data.query.SetGlobal(name, value)
+	return nil
 }
 
 func (data *rawData) Tag(tags ...string) interface{} {

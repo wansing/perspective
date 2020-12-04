@@ -211,12 +211,12 @@ func (q *Query) Run() error {
 }
 
 // Get returns the value of a variable. If q.IsHTML is true, then the value is cleared.
-func (q *Query) Get(varName string) template.HTML {
+func (q *Query) Get(varName string) string {
 	var val, _ = q.vars[varName]
 	if q.IsHTML() {
 		delete(q.vars, varName)
 	}
-	return template.HTML(val) // if not HTML, then the return value might be thrown away in other nodes, but the root handler still needs it
+	return val
 }
 
 // Set sets a variable if it is empty or if the current node is deeper than the origin of the existing value.
