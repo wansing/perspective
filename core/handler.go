@@ -54,6 +54,10 @@ func (t *Handler) Run(q *Query) error {
 
 	// no need to call q.Recurse because the queue is empty anyway
 
+	if q.request == nil {
+		return nil
+	}
+
 	var req = q.request.Clone(
 		context.WithValue(
 			q.request.Context(),
