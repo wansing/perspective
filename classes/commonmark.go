@@ -111,19 +111,46 @@ func renderMarkdown(input io.Reader) string {
 		unindentedContent.WriteString("\n")
 	}
 
-	// render markdown
+	// parse markdown
+	//
+	// We must not touch template actions.
+	// This is currently implemented by converting corresponding tokens to text,
+	// and by removing paragraph tags (inserted by the markdown parser) around them.
+	//
+	// This would be more elegant:
+	// 1. parse templates
+	// 2. run markdown
+	// 3. execute templates
+	// However we can't run markdown on a template parse tree
+	//
+	// We could also deal with this by creating our own template separation logic:
+	// - in the database
+	// - or using serialization techniques like mime/multipart or JSON in the core and the backend
+	// - or by parsing top-level {{define}} actions on our own
 
 	var tokens = commonMarkParser.Parse(unindentedContent.Bytes())
 	for i, t := range tokens {
 		if inline, ok := t.(*markdown.Inline); ok {
 			if strings.HasPrefix(inline.Content, "{{") && strings.HasSuffix(inline.Content, "}}") {
+
 				tokens[i] = &markdown.Text{
 					Content: inline.Content,
 					Lvl:     inline.Level(),
 				}
+
+				if i-1 >= 0 && i+1 < len(tokens) {
+					pBefore, _ := tokens[i-1].(*markdown.ParagraphOpen) // _ so no run-time panic occurs
+					pAfter, _ := tokens[i+1].(*markdown.ParagraphClose)
+					if pBefore != nil && pAfter != nil {
+						pBefore.Hidden = true
+						pAfter.Hidden = true
+					}
+				}
 			}
 		}
 	}
+
+	// render markdown
 
 	var result = &bytes.Buffer{}
 	commonMarkParser.RenderTokens(result, tokens)
