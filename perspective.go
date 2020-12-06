@@ -267,6 +267,19 @@ func makeAdmin(db *core.CoreDB, groupname string) {
 	}
 }
 
+// for rootTemplate
+type queryHTMLWrapper struct {
+	*core.Query
+}
+
+func (w queryHTMLWrapper) Get(name string) template.HTML {
+	return template.HTML(w.Query.Get(name))
+}
+
+func (w queryHTMLWrapper) GetGlobal(name string) template.HTML {
+	return template.HTML(w.Query.GetGlobal(name))
+}
+
 func listen(db *core.CoreDB, addr string, base string) {
 
 	// mux
@@ -331,7 +344,7 @@ func listen(db *core.CoreDB, addr string, base string) {
 				// rootTemplate could be the content of a virtual node. But that would be much effort, so we just do this:
 
 				if mainQuery.IsHTML() {
-					if err := rootTemplate.Execute(w, mainQuery); err != nil {
+					if err := rootTemplate.Execute(w, queryHTMLWrapper{mainQuery}); err != nil {
 						http.NotFound(w, req)
 					}
 				} else {
