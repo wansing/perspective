@@ -49,7 +49,7 @@ func (w prefixedResponseWriter) WriteHeader(statusCode int) {
 }
 
 // prefix should be without trailing slash
-func handleStrip(prefix string, handler http.Handler) {
+func handle(prefix string, handler http.Handler) {
 	http.Handle(
 		prefix+"/", // http mux needs trailing slash
 		http.StripPrefix(
@@ -316,12 +316,12 @@ func listen(db *core.CoreDB, addr string, base string) {
 
 	var waitingControllers sync.WaitGroup
 
-	handleStrip(base+"/assets", http.FileServer(assets))
-	handleStrip(base+"/backend", backend.NewBackendRouter(db, base))
-	handleStrip(base+"/static", http.FileServer(http.Dir("static")))
-	handleStrip(base+"/upload", db.Uploads)
+	handle(base+"/assets", http.FileServer(assets))
+	handle(base+"/backend", backend.NewBackendRouter(db, base))
+	handle(base+"/static", http.FileServer(http.Dir("static")))
+	handle(base+"/upload", db.Uploads)
 
-	handleStrip(
+	handle(
 		base,
 		http.HandlerFunc(
 			func(w http.ResponseWriter, req *http.Request) {
