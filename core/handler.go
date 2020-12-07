@@ -10,7 +10,7 @@ import (
 
 // responseWriter implements http.ResponseWriter.
 type responseWriter struct {
-	*bytes.Buffer
+	bytes.Buffer // golang's http package calls ReadFrom instead of Write, so it's not possible to use a pointer here and initialize it lazily in the Write func
 	prefix string
 	writer http.ResponseWriter
 }
@@ -22,10 +22,6 @@ func (w *responseWriter) Header() http.Header {
 
 // Write writes to the embedded buffer.
 func (w *responseWriter) Write(b []byte) (int, error) {
-	// redirect to the buffer
-	if w.Buffer == nil {
-		w.Buffer = &bytes.Buffer{}
-	}
 	return w.Buffer.Write(b)
 }
 
