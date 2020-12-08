@@ -24,14 +24,12 @@ var userTmpl = tmpl(`<h1>User &raquo;{{ .Selected.Name }}&laquo;</h1>
 
 	<form method="post">
 
-		{{ if not .IsRootAdmin }}
-			<div class="form-group row">
-				<label class="col-sm-6 col-form-label">Current password</label>
-				<div class="col-sm-6">
-					<input type="password" class="form-control" name="old">
-				</div>
+		<div class="form-group row">
+			<label class="col-sm-6 col-form-label">Current password</label>
+			<div class="col-sm-6">
+				<input type="password" class="form-control" name="old">
 			</div>
-		{{ end }}
+		</div>
 
 		<div class="form-group row">
 			<label class="col-sm-6 col-form-label">New password</label>
@@ -94,7 +92,7 @@ func user(w http.ResponseWriter, req *http.Request, ctx *context, params httprou
 		}
 
 		ctx.Success("password of %s has been changed", selected.Name())
-		ctx.SeeOther("/users/%d", selected.ID())
+		ctx.SeeOther("/user/%d", selected.ID())
 		return nil
 	}
 
