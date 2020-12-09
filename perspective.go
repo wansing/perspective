@@ -317,40 +317,42 @@ func listen(db *core.CoreDB, addr string, base string) {
 	var waitingControllers sync.WaitGroup
 
 	handle(base+"/assets", http.FileServer(assets))
-	handle(base+"/backend", backend.NewBackendRouter(db, base))
+	handle(base+"/backend", db.SessionManager.LoadAndSave(backend.NewBackendRouter(db, base)))
 	handle(base+"/static", http.FileServer(http.Dir("static")))
 	handle(base+"/upload", db.Uploads)
 
 	handle(
 		base,
-		http.HandlerFunc(
-			func(w http.ResponseWriter, req *http.Request) {
+		db.SessionManager.LoadAndSave(
+			http.HandlerFunc(
+				func(w http.ResponseWriter, req *http.Request) {
 
-				waitingControllers.Add(1)
-				defer waitingControllers.Done()
+					waitingControllers.Add(1)
+					defer waitingControllers.Done()
 
-				var request = db.NewRequest(w, req)
+					var request = db.NewRequest(w, req)
 
-				var mainQuery = &core.Query{
-					Request: request,
-					Queue:   core.NewQueue("/" + core.RootSlug + req.URL.Path),
-				}
-				defer mainQuery.Cleanup()
+					var mainQuery = &core.Query{
+						Request: request,
+						Queue:   core.NewQueue("/" + core.RootSlug + req.URL.Path),
+					}
+					defer mainQuery.Cleanup()
 
-				if err := mainQuery.Recurse(); err != nil {
-					http.NotFound(w, req)
-				}
-
-				// rootTemplate could be the content of a virtual node. But that would be much effort, so we just do this:
-
-				if mainQuery.IsHTML() {
-					if err := rootTemplate.Execute(w, queryHTMLWrapper{mainQuery}); err != nil {
+					if err := mainQuery.Recurse(); err != nil {
 						http.NotFound(w, req)
 					}
-				} else {
-					w.Write([]byte(mainQuery.Get("body")))
-				}
-			},
+
+					// rootTemplate could be the content of a virtual node. But that would be much effort, so we just do this:
+
+					if mainQuery.IsHTML() {
+						if err := rootTemplate.Execute(w, queryHTMLWrapper{mainQuery}); err != nil {
+							http.NotFound(w, req)
+						}
+					} else {
+						w.Write([]byte(mainQuery.Get("body")))
+					}
+				},
+			),
 		),
 	)
 
@@ -367,7 +369,7 @@ func listen(db *core.CoreDB, addr string, base string) {
 	log.Printf("listening to %s", addr)
 
 	httpSrv := &http.Server{
-		Handler:      db.SessionManager.LoadAndSave(http.DefaultServeMux),
+		Handler:      http.DefaultServeMux,
 		ReadTimeout:  30 * time.Second,
 		WriteTimeout: 30 * time.Second,
 	}
