@@ -210,11 +210,12 @@ func (q *Query) Run() error {
 	return q.Node.Class().Run(q)
 }
 
-// Get returns the value of a variable. If q.IsHTML is true, then the value is cleared.
+// Get returns the value of a variable.
 func (q *Query) Get(varName string) string {
 	var val, _ = q.vars[varName]
 	if q.IsHTML() {
-		delete(q.vars, varName)
+		// allow variable to be overwritten (see Set func)
+		q.varDepth[varName] = -1
 	}
 	return val
 }
@@ -235,7 +236,7 @@ func (q *Query) Set(name, value string) {
 		q.varDepth = make(map[string]int)
 	}
 
-	if q.vars[name] == "" || q.Node.Depth() > q.varDepth[name] { // set if old value is empty (e.g. has been fetched using Get) or if the new value comes from a deeper node
+	if q.Node.Depth() > q.varDepth[name] { // set if old value is empty (e.g. has been fetched using Get) or if the new value comes from a deeper node
 		q.vars[name] = value
 		q.varDepth[name] = q.Node.Depth()
 	}
