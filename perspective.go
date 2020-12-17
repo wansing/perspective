@@ -32,6 +32,8 @@ import (
 	"golang.org/x/crypto/ssh/terminal"
 )
 
+var GitCommit string // version or git hash
+
 type prefixedResponseWriter struct {
 	http.ResponseWriter
 	prefix string // without trailing slash
@@ -66,6 +68,7 @@ func handle(prefix string, handler http.Handler) {
 
 func init() {
 	log.SetFlags(0) // no log prefixes, on most systems systemd-journald adds them
+	log.Printf("starting perspective %s", GitCommit)
 }
 
 func main() {
