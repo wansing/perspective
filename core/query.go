@@ -215,6 +215,9 @@ func (q *Query) Get(varName string) string {
 	var val, _ = q.vars[varName]
 	if q.IsHTML() {
 		// allow variable to be overwritten (see Set func)
+		if q.varDepth == nil {
+			q.varDepth = make(map[string]int)
+		}
 		q.varDepth[varName] = -1
 	}
 	return val
