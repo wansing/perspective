@@ -28,43 +28,12 @@ import (
 	"github.com/wansing/perspective/sqldb"
 	"github.com/wansing/perspective/sqldb/mysql"
 	"github.com/wansing/perspective/sqldb/sqlite3"
+	"github.com/wansing/perspective/util"
 	"github.com/xo/dburl"
 	"golang.org/x/crypto/ssh/terminal"
 )
 
 var GitCommit string // version or git hash
-
-type prefixedResponseWriter struct {
-	http.ResponseWriter
-	prefix string // without trailing slash
-}
-
-// shadows the original WriteHeader func
-func (w prefixedResponseWriter) WriteHeader(statusCode int) {
-	// prepend prefix to Location header, so redirects work
-	if w.prefix != "" {
-		if location := w.Header().Get("Location"); len(location) > 0 && location[0] == '/' { // only absolute locations
-			w.Header().Set("Location", w.prefix+location)
-		}
-	}
-	w.ResponseWriter.WriteHeader(statusCode)
-}
-
-// prefix should be without trailing slash
-func handle(prefix string, handler http.Handler) {
-	http.Handle(
-		prefix+"/", // http mux needs trailing slash
-		http.StripPrefix(
-			prefix,
-			http.HandlerFunc(
-				func(w http.ResponseWriter, r *http.Request) {
-					w = &prefixedResponseWriter{w, prefix}
-					handler.ServeHTTP(w, r)
-				},
-			),
-		),
-	)
-}
 
 func init() {
 	log.SetFlags(0) // no log prefixes, on most systems systemd-journald adds them
@@ -319,12 +288,13 @@ func listen(db *core.CoreDB, addr string, base string) {
 
 	var waitingControllers sync.WaitGroup
 
-	handle(base+"/assets", http.FileServer(assets))
-	handle(base+"/backend", db.SessionManager.LoadAndSave(backend.NewBackendRouter(db, base)))
-	handle(base+"/static", http.FileServer(http.Dir("static")))
-	handle(base+"/upload", db.Uploads)
+	util.HandlePrefix(http.DefaultServeMux, base+"/assets", http.FileServer(assets))
+	util.HandlePrefix(http.DefaultServeMux, base+"/backend", backend.NewBackendRouter(db, base))
+	util.HandlePrefix(http.DefaultServeMux, base+"/static", http.FileServer(http.Dir("static")))
+	util.HandlePrefix(http.DefaultServeMux, base+"/upload", db.Uploads)
 
-	handle(
+	util.HandlePrefix(
+		http.DefaultServeMux,
 		base,
 		db.SessionManager.LoadAndSave(
 			http.HandlerFunc(

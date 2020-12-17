@@ -104,7 +104,7 @@ func NewBackendRouter(db *core.CoreDB, prefix string) http.Handler {
 	GETAndPOST("/workflows", middleware(db, prefix, true, workflows))
 	GETAndPOST("/workflow/:id", middleware(db, prefix, true, workflow))
 
-	return router
+	return db.SessionManager.LoadAndSave(router)
 }
 
 func tmpl(text string) *template.Template {
